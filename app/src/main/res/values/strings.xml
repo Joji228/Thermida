@@ -8,7 +8,6 @@
     <string name="add_engine">Add engine</string>
     <string name="add_item">Add item</string>
     <string name="ai_engine">AI engine</string>
-    <string name="ai_platform">AI platform</string>
     <string name="all_meals_water_weight_history_photos">All meals, water, weight history, photos and your profile will be deleted from this phone. </string>
     <string name="allow_camera">Allow camera</string>
     <string name="also_remove_my_api_keys">Also remove my API keys</string>
@@ -25,8 +24,6 @@
     <string name="calories_use_the_mifflin_st_jeor">Calories use the Mifflin-St Jeor equation; water uses your weight and activity. Estimates only, not medical advice.</string>
     <string name="cancel">Cancel</string>
     <string name="checking">Checking…</string>
-    <string name="choose_one">Choose one</string>
-    <string name="clear">Clear</string>
     <string name="clear_chat">Clear chat</string>
     <string name="clear_this_chat">Clear this chat?</string>
     <string name="close">Close</string>
@@ -41,12 +38,10 @@
     <string name="delete_photos">Delete photos</string>
     <string name="delete_this_meal">Delete this meal?</string>
     <string name="describe_the_meal">Describe the meal</string>
-    <string name="describe_what_you_ate_e_g">Describe what you ate, e.g. 2 eggs, toast with butter and a latte</string>
     <string name="done">Done</string>
     <string name="download">Download</string>
     <string name="drag_down_anywhere_on_the_screen">Drag down anywhere on the screen, hold for a moment, and your coach pops in. Try it now.</string>
     <string name="e_g_homemade_lasagna">e.g. Homemade lasagna</string>
-    <string name="enter_calories_yourself">Enter calories yourself</string>
     <string name="enter_manually">Enter manually</string>
     <string name="erase_everything">Erase everything?</string>
     <string name="estimated_from_your_weight_the_scale">Estimated from your weight, the scale\'s impedance and your profile. Good for trends, not a medical measurement.</string>
@@ -80,16 +75,13 @@
     <string name="ok">OK</string>
     <string name="or_type_a_model_name">Or type a model name</string>
     <string name="paste_your_key">Paste your key</string>
-    <string name="pasted_from_your_clipboard">Pasted from your clipboard</string>
     <string name="per_100_g">Per 100 g</string>
     <string name="pull_down_and_hold">Pull down and hold</string>
-    <string name="recent">Recent</string>
     <string name="remove">Remove</string>
     <string name="retry">Retry</string>
     <string name="save">Save</string>
     <string name="thermida_is_up_to_date">Thermida is up to date</string>
     <string name="thermida_needs_the_camera_to_scan">Thermida needs the camera to scan your meals.</string>
-    <string name="scan">Scan</string>
     <string name="search_a_food">Search a food</string>
     <string name="search_open_food_facts">Search Open Food Facts</string>
     <string name="service_address">Service address</string>

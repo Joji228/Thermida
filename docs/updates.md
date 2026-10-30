@@ -15,11 +15,13 @@ Each GitHub release that is **not** a draft or pre-release, and is the latest on
 - `update.json`, which the app reads first (the release notes come from the release's description):
 
   ```json
-  {"versionName": "0.0.1", "versionCode": 30, "apk": "Thermida-0.0.1.apk", "sha256": "<hex digest of the APK>"}
+  {"versionName": "0.0.1", "versionCode": 58, "apk": "Thermida-0.0.1.apk", "sha256": "<hex digest of the APK>"}
   ```
 
 The app offers a release only when its `versionCode` is higher than the installed one. The
 version name is what people read; the version code is what Android checks. The tag is `v<version>`.
+Version names started over at 0.0.1 in October 2026, but the code kept counting: 0.0.1 is 58,
+so the next release is 0.0.2 with 59.
 
 Downloads must come from `github.com` or GitHub's asset hosts over HTTPS. Anything else is ignored.
 The repo must be **public**: the app reads releases without a token, and no token is shipped. While it was private (October 2026) the check found nothing and updates were installed by hand.
@@ -39,7 +41,7 @@ The repo must be **public**: the app reads releases without a token, and no toke
    ```powershell
    Copy-Item app/build/outputs/apk/release/app-release.apk Thermida-0.0.1.apk
    $h = (Get-FileHash Thermida-0.0.1.apk -Algorithm SHA256).Hash.ToLower()
-   '{"versionName": "0.0.1", "versionCode": 30, "apk": "Thermida-0.0.1.apk", "sha256": "' + $h + '"}' | Set-Content -Encoding ascii update.json
+   '{"versionName": "0.0.1", "versionCode": 58, "apk": "Thermida-0.0.1.apk", "sha256": "' + $h + '"}' | Set-Content -Encoding ascii update.json
    ```
 
 4. Publish with the `gh` CLI:

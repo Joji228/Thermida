@@ -144,4 +144,4 @@ and 75 % of (lean − bone).
 - **Then:** hands-free weigh-ins, the full-screen dial, bone and muscle in kg, and swiping between
   measurements on the Body screen. The manual *Weigh in* button and its dialog were removed, since
   weigh-ins are picked up on their own. *Log* (typing a weight) stays.
-- **0.0.12:** the scale switch moved to **Settings → Devices**.
+- **Later:** the scale switch moved to **Settings → Devices**.
