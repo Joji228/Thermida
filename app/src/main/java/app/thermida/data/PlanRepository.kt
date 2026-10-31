@@ -92,7 +92,7 @@ class PlanRepository(
                     smartHandOver = SmartHandOver(keep),
                 )
             }
-            val (applied, stepped) = if (steering) SmartSchedule.next(stored, desired, today) else null to false
+            val (applied, stepped) = if (steering) SmartSchedule.next(stored, desired, today, formula) else null to false
             val scale = applied?.scale ?: 1.0
             val targets = Nutrition.targets(profile, current, scale)
             val step = if (stepped && applied != null) {

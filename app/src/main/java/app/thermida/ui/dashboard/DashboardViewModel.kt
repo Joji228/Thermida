@@ -75,6 +75,9 @@ class DashboardViewModel(private val app: AppContainer) : ViewModel() {
     /** A write that didn't work, for the snackbar: a full disk or a database error shouldn't crash the app. */
     val problems = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
+    /** Whether the weight chart draws the smoothed trend or the exact weigh-ins (a setting). */
+    val smoothCharts = app.settings.smoothCharts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
     /** The smart target's latest change to the calorie target, until it's been seen. */
     val smartNotice = app.settings.smartNotice.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

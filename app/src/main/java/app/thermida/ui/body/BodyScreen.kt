@@ -236,7 +236,7 @@ fun BodyScreen(viewModel: BodyViewModel, onBack: () -> Unit) {
                             "Turn on the smart scale in Settings, then step on it barefoot with Thermida open to see body fat, muscle, water and more.",
                         )
                     } else {
-                        CompositionCard(entry.report, scans.getOrNull(index - 1)?.report, state.series, entry.date)
+                        CompositionCard(entry.report, scans.getOrNull(index - 1)?.report, state.series, entry.date, state.smoothCharts)
                         Text(
                             stringResource(R.string.estimated_from_your_weight_the_scale),
                             style = MaterialTheme.typography.bodySmall,
@@ -433,6 +433,7 @@ private fun ChartCard(state: BodyState, latest: BodyReport) {
             unit = metric.unit,
             decimals = metric.decimals,
             target = if (metric == Metric.WEIGHT) state.profile?.goalWeightKg else null,
+            smooth = state.smoothCharts,
         )
         Spacer(Modifier.height(14.dp))
         PillSelector(Span.entries, span, { it.label }, { span = it })
@@ -494,7 +495,7 @@ private fun ScoreRing(score: Int) {
 // ---- Composition list ----------------------------------------------------------------------------
 
 @Composable
-private fun CompositionCard(scan: BodyReport, previous: BodyReport?, series: Map<Metric, List<ChartPoint>>, date: LocalDate) {
+private fun CompositionCard(scan: BodyReport, previous: BodyReport?, series: Map<Metric, List<ChartPoint>>, date: LocalDate, smooth: Boolean) {
     val rows = COMPOSITION_ROWS.mapNotNull { (main, extra) ->
         val reading = scan.readings.firstOrNull { it.metric == main } ?: return@mapNotNull null
         reading to extra.mapNotNull { m -> scan.readings.firstOrNull { it.metric == m } }
@@ -516,6 +517,7 @@ private fun CompositionCard(scan: BodyReport, previous: BodyReport?, series: Map
                 onToggle = { open = if (open == reading.metric) null else reading.metric },
                 // A single body-fat reading swings with how hydrated you are; the trend is what to watch.
                 trend = if (reading.metric in TREND_IN_ROW) trendAt(series[reading.metric].orEmpty(), date) else null,
+                smooth = smooth,
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -536,6 +538,7 @@ private fun MetricRow(
     share: Reading? = null,
     /** Shown instead of the change since the last reading, which is mostly noise for this metric. */
     trend: TrendNow? = null,
+    smooth: Boolean = true,
 ) {
     val metric = reading.metric
     fun Double.withUnit(m: Metric = shown.metric) = format(m.decimals) + if (m.unit.isEmpty()) "" else " ${m.unit}"
@@ -595,7 +598,7 @@ private fun MetricRow(
             }
             if (points.size > 1) {
                 Spacer(Modifier.height(14.dp))
-                TrendChart(points, metric.unit, metric.decimals, height = 120.dp)
+                TrendChart(points, metric.unit, metric.decimals, height = 120.dp, smooth = smooth)
             }
         }
     }

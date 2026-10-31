@@ -43,6 +43,7 @@ data class SettingsBackup(
     val accent: String? = null,
     val scaleEnabled: Boolean? = null,
     val haptics: Boolean? = null,
+    val smoothCharts: Boolean? = null,
     val primary: String? = null,
     val fallback: Boolean? = null,
     val fallbackProvider: String? = null,
@@ -92,6 +93,7 @@ class SettingsRepository(context: Context) {
     private val dailyLimitKey = longPreferencesKey("ai_daily_limit")
     private val weeklyLimitKey = longPreferencesKey("ai_weekly_limit")
     private val hapticsKey = booleanPreferencesKey("haptics_enabled")
+    private val smoothChartsKey = booleanPreferencesKey("smooth_charts")
     private val coachTutorialKey = booleanPreferencesKey("coach_tutorial_done")
     private val coachOpensKey = intPreferencesKey("coach_opens")
     private val smartScaleKey = doublePreferencesKey("smart_scale")
@@ -126,6 +128,9 @@ class SettingsRepository(context: Context) {
 
     /** Vibration feedback on taps, switches and gestures: on unless the user turns it off. */
     val hapticsEnabled: Flow<Boolean> = store.data.map { prefs -> prefs[hapticsKey] ?: true }.distinctUntilChanged()
+
+    /** Weight and body charts draw the smoothed trend (true) or a line through the exact readings. */
+    val smoothCharts: Flow<Boolean> = store.data.map { prefs -> prefs[smoothChartsKey] ?: true }.distinctUntilChanged()
 
     /** Open Food Facts lookups: on unless the user turns them off (since 1.1.7). */
     val useFoodFacts: Flow<Boolean> = store.data.map { prefs -> prefs[foodFactsKey] ?: true }
@@ -225,6 +230,7 @@ class SettingsRepository(context: Context) {
         accent = prefs[accentKey],
         scaleEnabled = prefs[scaleKey],
         haptics = prefs[hapticsKey],
+        smoothCharts = prefs[smoothChartsKey],
         primary = prefs[primaryKey],
         fallback = prefs[fallbackKey],
         fallbackProvider = prefs[fallbackProviderKey],
@@ -250,6 +256,7 @@ class SettingsRepository(context: Context) {
             backup.accent?.let { prefs[accentKey] = it }
             backup.scaleEnabled?.let { prefs[scaleKey] = it }
             backup.haptics?.let { prefs[hapticsKey] = it }
+            backup.smoothCharts?.let { prefs[smoothChartsKey] = it }
             backup.primary?.let { prefs[primaryKey] = it }
             backup.fallback?.let { prefs[fallbackKey] = it }
             backup.fallbackProvider?.let { prefs[fallbackProviderKey] = it }
@@ -339,6 +346,10 @@ class SettingsRepository(context: Context) {
 
     suspend fun setUseFoodFacts(enabled: Boolean) {
         store.edit { it[foodFactsKey] = enabled }
+    }
+
+    suspend fun setSmoothCharts(smooth: Boolean) {
+        store.edit { it[smoothChartsKey] = smooth }
     }
 
     suspend fun setHapticsEnabled(enabled: Boolean) {

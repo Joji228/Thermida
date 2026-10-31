@@ -106,6 +106,7 @@ import app.thermida.ui.update.UpdateDialog
 import java.time.LocalDate
 import kotlin.math.roundToInt
 import java.time.format.DateTimeFormatter
+import androidx.compose.material.icons.rounded.ShowChart
 
 @Composable
 fun SettingsScreen(
@@ -199,7 +200,7 @@ fun SettingsScreen(
                                     estimate == null -> "Tunes your daily calories to how your body really responds"
                                     estimate.active -> "Your real burn is about ${estimate.measuredTdee!!.format()} kcal a day, " +
                                         "measured from your meals and weigh-ins (${(estimate.confidence * 100).roundToInt()}% trusted). " +
-                                        "It adjusts your target at most once a week, in small steps."
+                                        "It adjusts your target only when it's off by 100 kcal or more, once a week at most."
                                     else -> "Learning your real burn. ${estimate.waitingFor} " +
                                         "(${estimate.daysLogged} of ${estimate.daysNeeded} days of meals logged)"
                                 } + (state.smartLast?.takeIf { p?.smartTarget == true }?.let { last ->
@@ -315,6 +316,20 @@ fun SettingsScreen(
                         },
                         {
                             AccentPicker(state.accent, viewModel::setAccent, Modifier.padding(14.dp))
+                        },
+                        {
+                            val smooth by viewModel.smoothCharts.collectAsStateWithLifecycle(initialValue = true)
+                            SwitchRow(
+                                title = "Smooth chart lines",
+                                subtitle = if (smooth) {
+                                    "On. Weight and body charts draw your trend, so daily swings don't zigzag the line"
+                                } else {
+                                    "Off. The line joins your exact readings, swings and all"
+                                },
+                                checked = smooth,
+                                onChange = viewModel::setSmoothCharts,
+                                icon = Icons.Rounded.ShowChart,
+                            )
                         },
                     ),
                 )

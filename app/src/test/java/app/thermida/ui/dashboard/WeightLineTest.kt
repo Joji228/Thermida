@@ -71,4 +71,12 @@ class WeightLineTest {
         // Without a readable start date it falls back to today
         assertEquals(listOf(x(today) to 85.0), weightLine(emptyList(), null, 85.0, today).points)
     }
+
+    @Test
+    fun smoothDrawsTheTrendAndLeavesTheDotsOnTheWeighIns() {
+        val days = listOf(day(start.plusDays(1), 84.6), day(start.plusDays(2), 84.9), day(start.plusDays(3), 84.1))
+        val line = weightLine(days, start, 85.0, today, smooth = true)
+        assertEquals(listOf(x(start) to 85.0) + days.map { x(it.date) to it.trend }, line.points)
+        assertEquals(days.map { x(it.date) to it.raw }, line.weighIns)
+    }
 }

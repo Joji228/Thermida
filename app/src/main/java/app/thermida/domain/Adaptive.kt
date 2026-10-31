@@ -143,17 +143,21 @@ object AdaptiveTdee {
 
 /**
  * Moves the calorie target's smart correction (measured burn ÷ formula burn) towards what the data
- * says once a week, in small steps, so the target never jumps when the estimate first switches on
- * and never wobbles from one day to the next as new meals and weigh-ins come in.
+ * says once a week, so the target never jumps when the estimate first switches on and never
+ * wobbles from one day to the next as new meals and weigh-ins come in.
+ *
+ * It only moves for a real difference. Over four weeks the measured burn is uncertain by roughly
+ * ±100 kcal a day (weigh-ins swing with water, and meals logged from photos are estimates), so a
+ * smaller gap is mostly noise. A big gap is closed over a few weeks rather than at once.
  */
 object SmartSchedule {
     const val INTERVAL_DAYS = 7L
 
-    /** The largest weekly move, as a share of daily burn: about 100 kcal for most people. */
-    const val MAX_STEP = 0.04
+    /** Gaps smaller than this aren't worth changing the target for. */
+    const val DEADBAND_KCAL = 100.0
 
-    /** Differences smaller than this (about 25 kcal) aren't worth changing the target for. */
-    const val DEADBAND = 0.01
+    /** The largest move in one week. */
+    const val MAX_STEP_KCAL = 150.0
 
     /** The correction in use and the day it was last changed. */
     data class Applied(val scale: Double, val on: LocalDate)
@@ -177,14 +181,16 @@ object SmartSchedule {
     }
 
     /**
-     * The correction to use [today], and whether it changed today. With nothing applied yet the
-     * target starts from the formula, and the first step can happen straight away.
+     * The correction to use [today], and whether it changed today. [burnKcal] is the formula's daily
+     * burn, which turns the kcal limits into shares of it. With nothing applied yet the target
+     * starts from the formula, and the first step can happen straight away.
      */
-    fun next(applied: Applied?, desired: Double, today: LocalDate): Pair<Applied, Boolean> {
+    fun next(applied: Applied?, desired: Double, today: LocalDate, burnKcal: Double): Pair<Applied, Boolean> {
         val current = applied ?: Applied(1.0, today.minusDays(INTERVAL_DAYS))
         val due = ChronoUnit.DAYS.between(current.on, today) >= INTERVAL_DAYS
         val gap = desired - current.scale
-        if (!due || abs(gap) < DEADBAND) return current to false
-        return Applied(current.scale + gap.coerceIn(-MAX_STEP, MAX_STEP), today) to true
+        if (!due || abs(gap) * burnKcal < DEADBAND_KCAL) return current to false
+        val maxStep = MAX_STEP_KCAL / burnKcal
+        return Applied(current.scale + gap.coerceIn(-maxStep, maxStep), today) to true
     }
 }

@@ -5,9 +5,9 @@ import java.time.LocalDate
 
 /** What the Weight card's chart draws. X values are epoch days (fractions allowed). */
 internal data class WeightLine(
-    /** The line: the starting weight when it belongs on the chart, then each day's weigh-in. */
+    /** The line: the starting weight when it belongs on the chart, then each day's weigh-in (or its trend). */
     val points: List<Pair<Double, Double>>,
-    /** One dot per weigh-in. They sit on the line. */
+    /** One dot per weigh-in. They sit on the line unless it's the smoothed trend. */
     val weighIns: List<Pair<Double, Double>>,
     /** Older weigh-ins were left off, so the chart reads "last 60 days". */
     val windowed: Boolean = false,
@@ -28,6 +28,8 @@ internal data class WeightLine(
  *
  * Only the last [windowDays] days are drawn: connecting a year of daily readings turns into a
  * scribble. The Body screen's Trends card has the longer ranges.
+ *
+ * With [smooth] the line is the smoothed trend instead, and the dots float around it.
  */
 internal fun weightLine(
     allDays: List<TrendPoint>,
@@ -35,6 +37,7 @@ internal fun weightLine(
     startKg: Double,
     today: LocalDate,
     windowDays: Int = WINDOW_DAYS,
+    smooth: Boolean = false,
 ): WeightLine {
     val last = allDays.lastOrNull()?.date
     val days = if (last == null) allDays else allDays.filter { !it.date.isBefore(last.minusDays(windowDays - 1L)) }
@@ -51,7 +54,7 @@ internal fun weightLine(
     return WeightLine(
         points = buildList {
             startX?.let { add(it to startKg) }
-            addAll(weighIns)
+            addAll(if (smooth) days.map { it.date.toEpochDay().toDouble() to it.trend } else weighIns)
         },
         weighIns = weighIns,
         windowed = windowed,

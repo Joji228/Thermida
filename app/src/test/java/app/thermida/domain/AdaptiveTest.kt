@@ -131,42 +131,42 @@ class AdaptiveTest {
 class SmartScheduleTest {
     private val today = LocalDate.of(2026, 10, 31)
 
+    /** A daily burn of 2,500 kcal: 100 kcal is 0.04 of it, 150 kcal is 0.06. */
+    private val burn = 2500.0
+
     @Test
-    fun theFirstChangeIsASmallStepNotAJump() {
-        val (applied, changed) = SmartSchedule.next(null, desired = 0.85, today)
+    fun theFirstChangeIsCappedNotAJump() {
+        val (applied, changed) = SmartSchedule.next(null, desired = 0.80, today, burn)
         assertTrue(changed)
-        assertEquals(0.96, applied.scale, 1e-9)
+        assertEquals(0.94, applied.scale, 1e-9)
         assertEquals(today, applied.on)
     }
 
     @Test
     fun itChangesAtMostOnceAWeek() {
-        val last = SmartSchedule.Applied(0.96, today.minusDays(3))
-        val (same, changed) = SmartSchedule.next(last, desired = 0.85, today)
+        val last = SmartSchedule.Applied(0.94, today.minusDays(3))
+        val (same, changed) = SmartSchedule.next(last, desired = 0.80, today, burn)
         assertFalse(changed)
         assertEquals(last, same)
-        val (next, changedLater) = SmartSchedule.next(last, desired = 0.85, today.plusDays(4))
+        val (next, changedLater) = SmartSchedule.next(last, desired = 0.80, today.plusDays(4), burn)
         assertTrue(changedLater)
-        assertEquals(0.92, next.scale, 1e-9)
+        assertEquals(0.88, next.scale, 1e-9)
     }
 
     @Test
-    fun tinyDifferencesLeaveTheTargetAlone() {
-        val last = SmartSchedule.Applied(0.95, today.minusDays(14))
-        assertFalse(SmartSchedule.next(last, desired = 0.955, today).second)
-    }
-
-    @Test
-    fun itSettlesExactlyOnTheMeasuredBurn() {
-        val last = SmartSchedule.Applied(0.95, today.minusDays(7))
-        val (applied, changed) = SmartSchedule.next(last, desired = 0.97, today)
+    fun gapsUnderAHundredKcalAreNoise() {
+        val last = SmartSchedule.Applied(1.0, today.minusDays(14))
+        // 80 kcal: left alone, the way photo-logged calories and daily weigh-ins wobble.
+        assertFalse(SmartSchedule.next(last, desired = 1.0 - 80 / burn, today, burn).second)
+        // 120 kcal: real, so the target moves by all of it.
+        val (applied, changed) = SmartSchedule.next(last, desired = 1.0 - 120 / burn, today, burn)
         assertTrue(changed)
-        assertEquals(0.97, applied.scale, 1e-9)
+        assertEquals(1.0 - 120 / burn, applied.scale, 1e-9)
     }
 
     @Test
     fun changesSurviveBeingStored() {
-        val change = SmartSchedule.Change(today, 2290, 2210)
+        val change = SmartSchedule.Change(today, 2290, 2160)
         assertEquals(change, SmartSchedule.Change.decode(change.encode()))
         assertFalse(change.up)
         assertNull(SmartSchedule.Change.decode("not a change"))

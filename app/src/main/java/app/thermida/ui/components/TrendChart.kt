@@ -41,7 +41,8 @@ data class ChartPoint(val date: LocalDate, val raw: Double, val trend: Double)
 
 /**
  * A metric over time with value labels and dates: the smoothed trend as a line with a soft fill,
- * raw readings as dots, and an optional dashed [target]. Touch or drag across it to read any
+ * raw readings as dots, and an optional dashed [target]. With [smooth] off the line joins the raw
+ * readings themselves instead. Touch or drag across it to read any
  * weigh-in; the readout above the chart shows the latest one otherwise.
  */
 @Composable
@@ -53,6 +54,7 @@ fun TrendChart(
     height: Dp = 180.dp,
     target: Double? = null,
     color: Color = MaterialTheme.colorScheme.primary,
+    smooth: Boolean = true,
 ) {
     var selected by remember(points) { mutableStateOf<Int?>(null) }
     val grid = MaterialTheme.colorScheme.outlineVariant
@@ -128,7 +130,8 @@ fun TrendChart(
             }
 
             val line = Path()
-            points.forEachIndexed { i, p -> if (i == 0) line.moveTo(x(p.date), y(p.trend)) else line.lineTo(x(p.date), y(p.trend)) }
+            fun lineY(p: ChartPoint) = y(if (smooth) p.trend else p.raw)
+            points.forEachIndexed { i, p -> if (i == 0) line.moveTo(x(p.date), lineY(p)) else line.lineTo(x(p.date), lineY(p)) }
             if (points.size > 1) {
                 val fill = Path().apply {
                     addPath(line)

@@ -212,6 +212,7 @@ fun DashboardScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val smartNotice by viewModel.smartNotice.collectAsStateWithLifecycle()
+    val smoothCharts by viewModel.smoothCharts.collectAsStateWithLifecycle()
     val voiceLanguage by viewModel.voiceLanguage.collectAsStateWithLifecycle(initialValue = VoiceLanguage.pick(null))
     val scaleEnabled by viewModel.scaleEnabled.collectAsStateWithLifecycle(initialValue = false)
     val foodFactsOn by viewModel.foodFactsEnabled.collectAsStateWithLifecycle(initialValue = false)
@@ -289,6 +290,7 @@ fun DashboardScreen(
                     onLog = { showWeightDialog = true },
                     onHistory = { showHistory = true },
                     onOpen = onOpenBody,
+                    smooth = smoothCharts,
                 )
             }
             item {

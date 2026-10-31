@@ -40,13 +40,15 @@ data class BodyState(
     val change30: Double? = null,
     /** Each metric over time, oldest first, with its own smoothed trend. */
     val series: Map<Metric, List<ChartPoint>> = emptyMap(),
+    /** Charts draw the smoothed trend, or a line through the exact readings (a setting). */
+    val smoothCharts: Boolean = true,
 )
 
 class BodyViewModel(private val app: AppContainer) : ViewModel() {
 
-    val state: StateFlow<BodyState> = combine(app.plans.plan, app.clock.today) { plan, today ->
-        val profile = plan.profile ?: return@combine BodyState(loading = false, today = today)
-        build(profile, plan.weighIns, today)
+    val state: StateFlow<BodyState> = combine(app.plans.plan, app.clock.today, app.settings.smoothCharts) { plan, today, smooth ->
+        val profile = plan.profile ?: return@combine BodyState(loading = false, today = today, smoothCharts = smooth)
+        build(profile, plan.weighIns, today).copy(smoothCharts = smooth)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BodyState()) // every weigh-in is analysed: keep it off the main thread
 
     private fun build(profile: UserProfile, weighIns: List<WeightEntity>, today: LocalDate): BodyState {

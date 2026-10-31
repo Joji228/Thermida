@@ -45,7 +45,7 @@ fun SmartTargetNotice(change: SmartSchedule.Change, onDismiss: () -> Unit, modif
                 "Your meals and weigh-ins show you burn a little more than estimated, so your target went up."
             } else {
                 "Your meals and weigh-ins show you burn a little less than estimated, so your target came down."
-            } + " It changes at most once a week, in small steps.",
+            } + " It only changes when the difference is 100 kcal or more, once a week at most.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp),

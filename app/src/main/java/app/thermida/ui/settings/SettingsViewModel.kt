@@ -241,6 +241,10 @@ class SettingsViewModel(private val app: AppContainer) : ViewModel() {
 
     val hapticsEnabled = app.settings.hapticsEnabled
 
+    val smoothCharts = app.settings.smoothCharts
+
+    fun setSmoothCharts(smooth: Boolean) = viewModelScope.launch { app.settings.setSmoothCharts(smooth) }
+
     fun setHapticsEnabled(enabled: Boolean) = viewModelScope.launch {
         // Applied at once so the click that confirms "on" (and the silence after "off") can't lag
         // behind the saved setting.

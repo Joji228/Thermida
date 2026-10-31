@@ -240,14 +240,16 @@ internal fun WeightCard(
     onLog: () -> Unit,
     onHistory: () -> Unit,
     onOpen: () -> Unit,
+    /** Draw the smoothed trend rather than a line through the exact weigh-ins. */
+    smooth: Boolean = true,
 ) {
     val profile = state.profile ?: return
     val current = state.currentWeight ?: profile.startWeightKg
     val change = current - profile.startWeightKg
     val towardsGoal = (profile.goalWeightKg - profile.startWeightKg) * change >= 0
     val startDate = runCatching { LocalDate.parse(profile.startDate) }.getOrNull()
-    val chart = remember(state.plan.trend, startDate, profile.startWeightKg, state.today) {
-        weightLine(state.plan.trend, startDate, profile.startWeightKg, state.today)
+    val chart = remember(state.plan.trend, startDate, profile.startWeightKg, state.today, smooth) {
+        weightLine(state.plan.trend, startDate, profile.startWeightKg, state.today, smooth = smooth)
     }
     // With the scale turned on, tapping anywhere outside the buttons opens the Body screen.
     ThermidaCard(onClick = if (scaleEnabled) onOpen else null) {
@@ -293,7 +295,12 @@ internal fun WeightCard(
         if (chart.hasWeighIns && chart.isLine) {
             Spacer(Modifier.height(6.dp))
             Text(
-                if (chart.windowed) "Last $WINDOW_DAYS days · Line joins your weigh-ins" else "Line joins your weigh-ins · Trend smooths daily swings",
+                when {
+                    smooth && chart.windowed -> "Last $WINDOW_DAYS days · Line is your trend, dots are weigh-ins"
+                    smooth -> "Line is your trend, dots are your weigh-ins"
+                    chart.windowed -> "Last $WINDOW_DAYS days · Line joins your weigh-ins"
+                    else -> "Line joins your weigh-ins · Trend smooths daily swings"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
