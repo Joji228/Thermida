@@ -74,6 +74,9 @@ class CoachViewModel(private val app: AppContainer) : ViewModel() {
     val speechRate = app.settings.coachSpeechRate
     val pauseMs = app.settings.coachPauseMs
 
+    /** The engine the coach uses has no key (or no address) yet, so asking would only fail. */
+    val needsKey = app.settings.ai.map { !it.isReady(it.primary) }
+
     /** A question taken back with Stop, to be put in the text box again so it can be changed. */
     val restored = MutableStateFlow<String?>(null)
 

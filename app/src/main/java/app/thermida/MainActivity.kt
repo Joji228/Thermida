@@ -89,10 +89,8 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
@@ -543,7 +541,14 @@ private fun ThermidaNavHost(container: AppContainer, start: Any) {
                             },
                     ) {
                         val vm = viewModel { CoachViewModel(container) }
-                        CoachScreen(vm, onBack = { coachOpen = false })
+                        CoachScreen(
+                            vm,
+                            onBack = { coachOpen = false },
+                            onOpenAiSettings = {
+                                coachOpen = false
+                                nav.navigate(AiSettingsRoute) { launchSingleTop = true }
+                            },
+                        )
                     }
                 }
                 DropSheen(shown, lifted, bloomCenterY, bubbleRadius, accent)

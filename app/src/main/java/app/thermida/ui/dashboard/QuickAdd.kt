@@ -28,7 +28,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -48,7 +47,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -65,13 +63,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -97,7 +92,6 @@ import app.thermida.ai.AnalysisResult
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
-import app.thermida.data.FoodFact
 import app.thermida.domain.MealType
 import app.thermida.ui.components.PillSelector
 import app.thermida.ui.components.RoundIconButton
@@ -105,23 +99,18 @@ import app.thermida.ui.components.rememberHaptics
 import app.thermida.ui.components.format
 import app.thermida.ui.theme.Numeric
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 
 /**
- * Logging a food in a few taps, on the day being viewed. With Open Food Facts on: search as you
- * type, pick the product, adjust the grams, tick. Or type the food in yourself: a name, its
- * calories and, if you know them, its macros. Without Open Food Facts only the typing remains.
+ * Logging a food on the day being viewed: describe it and let the AI work it out, or type it in
+ * yourself (a name, its calories and, if you know them, its macros).
  */
 @Composable
 fun QuickAddDialog(
-    /** Null when Open Food Facts is off: the dialog opens straight on typing it in. */
-    search: (suspend (String) -> List<FoodFact>)?,
     onDismiss: () -> Unit,
-    onLog: (fact: FoodFact, name: String, grams: Double, type: MealType) -> Unit,
-    title: String = "Quick add",
     /** A typed-in food: name, total kcal, protein, carbs and fat in grams, and its meal. */
-    onLogManual: ((name: String, kcal: Double, protein: Double, carbs: Double, fat: Double, type: MealType) -> Unit)? = null,
-    /** Plain-language mode: the AI estimates what the user describes. Replaces the search when set. */
+    onLogManual: (name: String, kcal: Double, protein: Double, carbs: Double, fat: Double, type: MealType) -> Unit,
+    title: String = "Add food",
+    /** Plain-language mode: the AI estimates what the user describes. Null opens straight on typing it in. */
     describe: (suspend (String) -> AnalysisResult)? = null,
     /** Logs a described meal: its name, items as corrected, meal type and where the estimate came from. */
     onLogEstimate: ((DescribedMeal) -> Unit)? = null,
@@ -131,37 +120,17 @@ fun QuickAddDialog(
     voiceLanguage: VoiceLanguage? = null,
     onVoiceLanguage: (VoiceLanguage) -> Unit = {},
 ) {
-    var manual by remember { mutableStateOf(search == null && describe == null) }
+    var manual by remember { mutableStateOf(describe == null) }
     var kcal by remember { mutableStateOf("") }
     var protein by remember { mutableStateOf("") }
     var carbs by remember { mutableStateOf("") }
     var fat by remember { mutableStateOf("") }
-    var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<FoodFact>>(emptyList()) }
-    var searching by remember { mutableStateOf(false) }
-    var problem by remember { mutableStateOf<String?>(null) }
-    var picked by remember { mutableStateOf<FoodFact?>(null) }
     var name by remember { mutableStateOf("") }
-    var grams by remember { mutableStateOf("") }
     var type by remember { mutableStateOf(MealType.forTime()) }
     val focus = remember { FocusRequester() }
     var closing by remember { mutableStateOf(false) }
 
     LaunchedEffect(manual) { runCatching { focus.requestFocus() } }
-    LaunchedEffect(query) {
-        val q = query.trim()
-        if (search == null || q.length < 2 || picked != null) {
-            if (picked == null) results = emptyList()
-            problem = null
-            return@LaunchedEffect
-        }
-        delay(450) // typing pause; a new letter cancels this and starts over
-        searching = true
-        runCatching { search(q) }
-            .onSuccess { results = it; problem = if (it.isEmpty()) "No products found" else null }
-            .onFailure { if (it is CancellationException) throw it else problem = "Couldn't reach Open Food Facts" }
-        searching = false
-    }
 
     // Slides down from the top edge, quick and eased, and back up when closed. The system's own
     // dialog animation and dim are switched off so only this motion is seen.
@@ -209,7 +178,8 @@ fun QuickAddDialog(
                     Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                     RoundIconButton(Icons.Rounded.Close, "Close", { closing = true })
                 }
-                if (manual && onLogManual != null) {
+                val describeIt = describe
+                if (manual || describeIt == null) {
                     ManualFood(
                         name = name,
                         onName = { name = it },
@@ -219,116 +189,22 @@ fun QuickAddDialog(
                         fat = fat, onFat = { fat = it },
                         type = type, onType = { type = it },
                         focus = focus,
-                        searchLabel = if (describe != null) "Describe it instead" else "Search the database",
-                        onSearchInstead = if (search != null || describe != null) ({ manual = false }) else null,
+                        onDescribeInstead = if (describeIt != null) ({ manual = false }) else null,
                         onLog = {
                             onLogManual(name.trim().ifBlank { "Food" }, it.kcal, it.protein, it.carbs, it.fat, type)
                             closing = true
                         },
                     )
-                } else if (describe != null) {
+                } else {
                     DescribeFood(
-                        describe = describe,
+                        describe = describeIt,
                         recent = recent,
                         onLogEstimate = onLogEstimate,
-                        onEnterByHand = if (onLogManual != null) ({ manual = true }) else null,
+                        onEnterByHand = { manual = true },
                         onLogged = { closing = true },
                         voiceLanguage = voiceLanguage,
                         onVoiceLanguage = onVoiceLanguage,
                     )
-                } else {
-                TextField(
-                    query,
-                    {
-                        query = it
-                        picked = null
-                    },
-                    placeholder = { Text(stringResource(R.string.search_a_food)) },
-                    leadingIcon = { Icon(Icons.Rounded.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    trailingIcon = {
-                        when {
-                            searching -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                            query.isNotEmpty() -> IconButton(onClick = { query = ""; picked = null }) { Icon(Icons.Rounded.Close, "Clear", Modifier.size(18.dp)) }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focus),
-                )
-
-                val chosen = picked
-                if (chosen == null) {
-                    if (results.isNotEmpty()) {
-                        Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-                            results.forEachIndexed { index, fact ->
-                                if (index > 0) HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                                Column(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            picked = fact
-                                            name = fact.label
-                                            grams = (fact.servingGrams ?: 100.0).format()
-                                            // A chocolate bar or a drink is a snack whatever the hour; anything else follows the time.
-                                            type = if (fact.snack) MealType.SNACK else MealType.forTime()
-                                        }
-                                        .padding(vertical = 10.dp, horizontal = 4.dp),
-                                ) {
-                                    Text(fact.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(
-                                        "${fact.kcalPer100.format()} kcal per 100 g" + (fact.servingGrams?.let { " · serving ${it.format()} g" } ?: ""),
-                                        style = MaterialTheme.typography.labelSmall.merge(Numeric),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    if (onLogManual != null) {
-                        TextButton(
-                            onClick = {
-                                name = query.trim()
-                                manual = true
-                            },
-                            contentPadding = PaddingValues(horizontal = 4.dp),
-                        ) { Text(stringResource(R.string.not_in_the_list_enter_calories)) }
-                    }
-                } else {
-                    val g = grams.replace(',', '.').toDoubleOrNull() ?: 0.0
-                    val factor = g / 100.0
-                    OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.meal_name)) }, singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(
-                        grams,
-                        { grams = it },
-                        label = { Text(stringResource(R.string.grams)) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(
-                        "${(chosen.kcalPer100 * factor).format()} kcal · P ${(chosen.proteinPer100 * factor).format()} g · " +
-                            "C ${(chosen.carbsPer100 * factor).format()} g · F ${(chosen.fatPer100 * factor).format()} g",
-                        style = MaterialTheme.typography.titleSmall.merge(Numeric),
-                    )
-                    PillSelector(MealType.entries, type, { it.title }, { type = it })
-                    Row {
-                        Spacer(Modifier.weight(1f))
-                        LogButton(enabled = g > 0) {
-                            onLog(chosen, name.ifBlank { chosen.label }, g, type)
-                            closing = true
-                        }
-                    }
-                }
                 }
             }
         }
@@ -363,8 +239,8 @@ private fun ManualFood(
     type: MealType,
     onType: (MealType) -> Unit,
     focus: FocusRequester,
-    searchLabel: String,
-    onSearchInstead: (() -> Unit)?,
+    /** Back to describing the food for the AI; null when that isn't offered. */
+    onDescribeInstead: (() -> Unit)?,
     onLog: (TypedFood) -> Unit,
 ) {
     val food = typedFood(kcal, protein, carbs, fat)
@@ -391,8 +267,8 @@ private fun ManualFood(
     )
     PillSelector(MealType.entries, type, { it.title }, onType)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (onSearchInstead != null) {
-            TextButton(onClick = onSearchInstead, contentPadding = PaddingValues(horizontal = 4.dp)) { Text(searchLabel) }
+        if (onDescribeInstead != null) {
+            TextButton(onClick = onDescribeInstead, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Describe it instead") }
         }
         Spacer(Modifier.weight(1f))
         LogButton(enabled = food != null && name.isNotBlank()) { food?.let(onLog) }
@@ -561,7 +437,7 @@ private fun DescribeFood(
                         language = language,
                         onMic = {
                             when {
-                                mic?.listening == true -> mic?.stop()
+                                mic?.listening == true -> mic.stop()
                                 ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> listen()
                                 else -> micPermission.launch(Manifest.permission.RECORD_AUDIO)
                             }

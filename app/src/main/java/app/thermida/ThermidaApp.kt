@@ -25,7 +25,6 @@ import app.thermida.data.OpenFoodFacts
 import kotlinx.coroutines.flow.MutableStateFlow
 import okhttp3.OkHttpClient
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

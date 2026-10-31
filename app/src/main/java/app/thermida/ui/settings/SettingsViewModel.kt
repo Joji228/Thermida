@@ -395,12 +395,22 @@ class SettingsViewModel(private val app: AppContainer) : ViewModel() {
         val backup = pendingImport.value?.backup ?: return
         pendingImport.value = null
         viewModelScope.launch {
+            // The logged data is replaced in one go; the profile and settings after it can't join
+            // that, so a failure there must not claim that nothing changed.
+            var dataReplaced = false
             runCatching {
                 app.repository.restore(backup)
+                dataReplaced = true
                 backup.profile?.let { app.settings.saveProfile(it) }
                 backup.settings?.let { app.settings.restore(it) }
             }.onSuccess { message.value = "Imported ${backup.meals.size} meals" }
-                .onFailure { message.value = "Import failed: ${it.message}. Nothing was changed." }
+                .onFailure {
+                    message.value = if (dataReplaced) {
+                        "Your meals, water and weigh-ins were imported, but the profile or settings couldn't be: ${it.message}. Import the file again to finish."
+                    } else {
+                        "Import failed: ${it.message}. Nothing was changed."
+                    }
+                }
         }
     }
 }

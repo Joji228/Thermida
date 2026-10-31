@@ -2,7 +2,6 @@ package app.thermida.ui.coach
 
 import androidx.compose.ui.res.stringResource
 import app.thermida.R
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,36 +13,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,26 +49,12 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.thermida.data.CoachMessage
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.ui.text.input.KeyboardType
-import app.thermida.data.ActionFood
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.sp
-import app.thermida.ui.theme.Numeric
-import app.thermida.ui.theme.Nutrient
-import java.time.format.DateTimeFormatter
-import java.util.Locale
-import kotlin.math.roundToInt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -88,26 +62,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.rounded.Block
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.Flag
-import androidx.compose.material.icons.rounded.LocalFireDepartment
-import androidx.compose.material.icons.rounded.MonitorWeight
-import androidx.compose.material.icons.rounded.Restaurant
-import androidx.compose.material.icons.rounded.Verified
-import androidx.compose.material.icons.rounded.WaterDrop
 import app.thermida.data.ActionStatus
-import app.thermida.data.ActionType
-import app.thermida.data.CoachAction
-import app.thermida.data.CoachActions
 import app.thermida.data.CoachStarters
-import java.time.LocalDate
 import app.thermida.ui.components.Pill
 import app.thermida.ui.components.rememberHaptics
 import app.thermida.ui.components.RoundIconButton
@@ -145,7 +103,8 @@ internal const val TYPE_CHARS_PER_SECOND = 140L
 val CoachSuggestions = CoachStarters.DEFAULTS
 
 @Composable
-fun CoachScreen(viewModel: CoachViewModel, onBack: () -> Unit) {
+fun CoachScreen(viewModel: CoachViewModel, onBack: () -> Unit, onOpenAiSettings: () -> Unit) {
+    val needsKey by viewModel.needsKey.collectAsStateWithLifecycle(initialValue = false)
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val thinking by viewModel.thinking.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
@@ -243,6 +202,7 @@ fun CoachScreen(viewModel: CoachViewModel, onBack: () -> Unit) {
         onStop = viewModel::stop,
         restoredInput = restored,
         onRestoredShown = viewModel::restoredShown,
+        onAddKey = if (needsKey) onOpenAiSettings else null,
         voice = CoachVoice(
             input = voiceIn,
             output = voiceOut,
@@ -296,6 +256,8 @@ fun CoachContent(
     /** A question taken back by Stop; it goes back into the text box. */
     restoredInput: String? = null,
     onRestoredShown: () -> Unit = {},
+    /** Set while the engine used has no API key: opens Settings → AI engine. */
+    onAddKey: (() -> Unit)? = null,
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     // Typed, tapped (starters, follow-up pills) or sent by hand: the voice conversation is over.
@@ -321,7 +283,7 @@ fun CoachContent(
     LaunchedEffect(voice?.problem) {
         voice?.problem?.let {
             voiceNote = it
-            voice?.onProblemShown()
+            voice.onProblemShown()
         }
     }
     val latestMessages by rememberUpdatedState(messages)
@@ -562,6 +524,23 @@ fun CoachContent(
             })
         }
 
+        // Without a key the coach can't answer anything: say so before a question is wasted, with the way there.
+        if (onAddKey != null) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 12.dp, top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "The coach needs an API key to answer.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onAddKey) { Text("Add a key") }
+            }
+        }
         AnimatedVisibility(visible = voiceNote != null, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
             Text(
                 voiceNote.orEmpty(),

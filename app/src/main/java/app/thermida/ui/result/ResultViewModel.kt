@@ -29,6 +29,11 @@ data class EditableItem(
     val fatPer100: Double,
     /** The Open Food Facts product these numbers came from, when they did. */
     val foodFacts: String? = null,
+    /**
+     * Typed in as totals in Add food (calories and macros, no weight). It is stored as 100 g with
+     * those totals as its per-100 g values, so its grams mean nothing to the user and aren't shown.
+     */
+    val typedTotal: Boolean = false,
 ) {
     fun macros(multiplier: Double = 1.0) =
         Macros(kcalPer100, proteinPer100, carbsPer100, fatPer100) * (grams * multiplier / 100.0)
@@ -57,8 +62,8 @@ data class ResultState(
 ) {
     val total: Macros get() = items.fold(Macros()) { acc, item -> acc + item.macros(multiplier) }
 
-    /** Weight of everything on the plate at the chosen portion. */
-    val totalGrams: Double get() = items.sumOf { it.grams } * multiplier
+    /** Weight of everything on the plate at the chosen portion; null when a food was typed in without one. */
+    val totalGrams: Double? get() = if (items.any { it.typedTotal }) null else items.sumOf { it.grams } * multiplier
 }
 
 /** Size of one +/− press on an item's grams. */
@@ -78,13 +83,15 @@ class ResultViewModel(private val app: AppContainer, private val mealId: Long) :
             if (mealId > 0) {
                 val saved = app.repository.meal(mealId) ?: return@launch
                 original = saved.meal
+                // Only Add food's "Enter manually" saves a meal as added by hand, as typed-in totals.
+                val typed = saved.meal.source == FoodSource.BY_HAND
                 _state.value = ResultState(
                     loaded = true,
                     isEdit = true,
                     name = saved.meal.name,
                     mealType = MealType.parse(saved.meal.mealType),
                     items = saved.items.map {
-                        EditableItem(nextKey++, it.name, it.grams, it.kcalPer100, it.proteinPer100, it.carbsPer100, it.fatPer100)
+                        EditableItem(nextKey++, it.name, it.grams, it.kcalPer100, it.proteinPer100, it.carbsPer100, it.fatPer100, typedTotal = typed)
                     },
                     source = saved.meal.source,
                     savedPhotoPath = saved.meal.photoPath,

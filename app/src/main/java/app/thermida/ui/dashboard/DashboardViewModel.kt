@@ -14,9 +14,9 @@ import app.thermida.data.db.macros
 import app.thermida.domain.MealType
 import app.thermida.data.db.FoodItemEntity
 import app.thermida.data.db.MealEntity
+import app.thermida.data.db.WeightEntity
 import app.thermida.data.EntryTime
 import app.thermida.data.FoodSource
-import app.thermida.data.FoodFact
 import app.thermida.domain.Macros
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -125,9 +125,6 @@ class DashboardViewModel(private val app: AppContainer) : ViewModel() {
 
     fun setVoiceLanguage(language: VoiceLanguage) = write { app.settings.setVoiceLanguage(language.name) }
 
-    /** Quick add is offered only to users who turned on Open Food Facts. */
-    val foodFactsEnabled = app.settings.useFoodFacts
-
     /**
      * A plain-language description, estimated by the AI engine (DeepSeek by default, or its backup).
      * Branded products then take their real label values from Open Food Facts when it is on.
@@ -208,34 +205,12 @@ class DashboardViewModel(private val app: AppContainer) : ViewModel() {
         }
     }
 
-    /** Logs one Open Food Facts product as its own meal, on [date] (the day being viewed). */
-    fun quickLog(fact: FoodFact, name: String, grams: Double, type: MealType, date: LocalDate) {
-        logMeal(
-            date, type, name, "Open Food Facts",
-            FoodItemEntity(
-                mealId = 0,
-                name = fact.label,
-                grams = grams,
-                kcalPer100 = fact.kcalPer100,
-                proteinPer100 = fact.proteinPer100,
-                carbsPer100 = fact.carbsPer100,
-                fatPer100 = fact.fatPer100,
-            ),
-        )
-    }
-
     /**
      * A food typed in by hand: its total calories and macros. Stored as a 100 g item so the
-     * per-100 g values are the totals and editing it later works like any other meal.
+     * per-100 g values are the totals; the meal screen knows such a meal by its source and shows
+     * it as totals, without the weight.
      */
     fun manualLog(name: String, kcal: Double, protein: Double, carbs: Double, fat: Double, type: MealType, date: LocalDate) {
-        logMeal(
-            date, type, name, FoodSource.BY_HAND,
-            FoodItemEntity(mealId = 0, name = name, grams = 100.0, kcalPer100 = kcal, proteinPer100 = protein, carbsPer100 = carbs, fatPer100 = fat),
-        )
-    }
-
-    private fun logMeal(date: LocalDate, type: MealType, name: String, source: String, item: FoodItemEntity) {
         write {
             app.repository.saveMeal(
                 MealEntity(
@@ -244,15 +219,20 @@ class DashboardViewModel(private val app: AppContainer) : ViewModel() {
                     mealType = type.name,
                     name = name,
                     photoPath = null,
-                    source = source,
+                    source = FoodSource.BY_HAND,
                     note = null,
                 ),
-                listOf(item),
+                listOf(FoodItemEntity(mealId = 0, name = name, grams = 100.0, kcalPer100 = kcal, proteinPer100 = protein, carbsPer100 = carbs, fatPer100 = fat)),
             )
         }
     }
 
-    fun deleteWeight(id: Long) {
-        write { app.repository.deleteWeight(id) }
+    fun deleteWeight(entry: WeightEntity) {
+        write { app.repository.deleteWeight(entry.id) }
+    }
+
+    /** Puts back a weigh-in deleted from the history, body composition included. */
+    fun restoreWeight(entry: WeightEntity) {
+        write { app.repository.restoreWeight(entry) }
     }
 }

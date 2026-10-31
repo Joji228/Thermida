@@ -98,10 +98,22 @@ class ScanViewModel(private val app: AppContainer) : ViewModel() {
         val codes = photos.mapNotNull { BarcodeReader.read(it) }.distinct().take(3)
         if (codes.isEmpty()) return null
         val facts = withTimeoutOrNull(6_000) {
-            coroutineScope { codes.map { code -> async { runCatching { app.foodFacts.product(code) }.getOrNull() } }.awaitAll() }
+            coroutineScope { codes.map { code -> async { lookUp(code) } }.awaitAll() }
         }?.filterNotNull().orEmpty()
         if (facts.isEmpty()) return null
         return resultFromFacts(facts)
+    }
+
+    /**
+     * The product with this barcode, or null when Open Food Facts doesn't have it or can't be reached.
+     * Cancel still cancels: swallowing it would report the code as unknown after the user tapped Cancel.
+     */
+    private suspend fun lookUp(code: String): FoodFact? = try {
+        app.foodFacts.product(code)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     private suspend fun resultFromFacts(facts: List<FoodFact>): AnalysisResult {
@@ -170,7 +182,7 @@ class ScanViewModel(private val app: AppContainer) : ViewModel() {
             analyzing = true
             error = null
             try {
-                val fact = withTimeoutOrNull(6_000) { runCatching { app.foodFacts.product(code) }.getOrNull() }
+                val fact = withTimeoutOrNull(6_000) { lookUp(code) }
                 if (fact == null) {
                     unknownCodes[code] = System.currentTimeMillis()
                     error = "Barcode $code isn't on Open Food Facts. Take a photo and the AI will estimate it."

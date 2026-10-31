@@ -11,7 +11,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -24,7 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
 import java.time.ZoneId
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
@@ -61,7 +59,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.MonitorWeight
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -84,7 +81,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -99,7 +95,6 @@ import app.thermida.ui.components.Pill
 import app.thermida.ui.components.PillSelector
 import app.thermida.ui.components.ProgressLine
 import app.thermida.ui.components.RoundIconButton
-import app.thermida.ui.components.SecondaryButton
 import app.thermida.ui.components.TrendChart
 import app.thermida.ui.components.format
 import app.thermida.ui.theme.Numeric
@@ -233,7 +228,11 @@ fun BodyScreen(viewModel: BodyViewModel, onBack: () -> Unit) {
                     if (entry == null) {
                         EmptyCard(
                             "Body composition",
-                            "Turn on the smart scale in Settings, then step on it barefoot with Thermida open to see body fat, muscle, water and more.",
+                            if (state.scaleEnabled) {
+                                "Step on your smart scale barefoot with Thermida open to see body fat, muscle, water and more."
+                            } else {
+                                "Turn on the smart scale in Settings, then step on it barefoot with Thermida open to see body fat, muscle, water and more."
+                            },
                         )
                     } else {
                         CompositionCard(entry.report, scans.getOrNull(index - 1)?.report, state.series, entry.date, state.smoothCharts)

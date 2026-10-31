@@ -2,6 +2,8 @@ package app.thermida.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -36,14 +38,19 @@ class CoachStore(private val dir: File) {
         runCatching { json.decodeFromString(serializer, file.readText()) }.getOrDefault(emptyList())
     }
 
+    /** One write at a time: saves started together (a card accepted while another is edited) share the temp file. */
+    private val writes = Mutex()
+
     suspend fun save(messages: List<CoachMessage>) = withContext(Dispatchers.IO) {
-        dir.mkdirs()
-        // Written next to the old file and swapped in, so a crash mid-write never leaves half a chat.
-        val temp = File(dir, "chat.json.tmp")
-        temp.writeText(json.encodeToString(serializer, messages))
-        if (!temp.renameTo(file)) {
-            file.delete()
-            temp.renameTo(file)
+        writes.withLock {
+            dir.mkdirs()
+            // Written next to the old file and swapped in, so a crash mid-write never leaves half a chat.
+            val temp = File(dir, "chat.json.tmp")
+            temp.writeText(json.encodeToString(serializer, messages))
+            if (!temp.renameTo(file)) {
+                file.delete()
+                temp.renameTo(file)
+            }
         }
     }
 
@@ -52,8 +59,10 @@ class CoachStore(private val dir: File) {
 
     suspend fun clear() {
         withContext(Dispatchers.IO) {
-            File(dir, "chat.json.tmp").delete()
-            file.delete()
+            writes.withLock {
+                File(dir, "chat.json.tmp").delete()
+                file.delete()
+            }
         }
         cleared.tryEmit(Unit)
     }

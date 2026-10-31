@@ -101,6 +101,12 @@ class NutritionTest {
     }
 
     @Test
+    fun goalWeightNeverDropsBelowAHealthyBmi() {
+        assertEquals(60.0, Nutrition.minimumHealthyKg(180.0), 0.001) // 18.5 × 1.8² = 59.94
+        assertEquals(47.4, Nutrition.minimumHealthyKg(160.0), 0.001) // 18.5 × 1.6² = 47.36
+    }
+
+    @Test
     fun calorieMinimumDependsOnSex() {
         assertEquals(1500, Nutrition.minimumKcal(Sex.MALE))
         assertEquals(1200, Nutrition.minimumKcal(Sex.FEMALE))

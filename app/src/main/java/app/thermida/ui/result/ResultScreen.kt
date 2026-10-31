@@ -377,9 +377,11 @@ private fun TotalsCard(state: ResultState) {
             )
             Spacer(Modifier.weight(1f))
             // The whole plate's weight, so a portion can be judged without scrolling the items.
-            Column(horizontalAlignment = Alignment.End) {
-                Text("≈ ${state.totalGrams.format()} g", style = MaterialTheme.typography.titleLarge.merge(Numeric))
-                Text(stringResource(R.string.total_weight), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            state.totalGrams?.let { grams ->
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("≈ ${grams.format()} g", style = MaterialTheme.typography.titleLarge.merge(Numeric))
+                    Text(stringResource(R.string.total_weight), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -441,28 +443,32 @@ private fun ItemCard(
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // Hold to keep adding or removing, like every other +/− in the app.
-            RepeatIconButton(Icons.Rounded.Remove, "Less", size = 36.dp, onStep = { onNudge(-1) })
-            Box(
-                Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(onClick = onEditGrams)
-                    .padding(vertical = 6.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    (item.grams * multiplier).format() + " g",
-                    style = MaterialTheme.typography.titleLarge.merge(Numeric),
-                )
+        // A food typed in as totals has no real weight to adjust; the Portion buttons still scale it.
+        if (!item.typedTotal) {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Hold to keep adding or removing, like every other +/− in the app.
+                RepeatIconButton(Icons.Rounded.Remove, "Less", size = 36.dp, onStep = { onNudge(-1) })
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onEditGrams)
+                        .padding(vertical = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        (item.grams * multiplier).format() + " g",
+                        style = MaterialTheme.typography.titleLarge.merge(Numeric),
+                    )
+                }
+                RepeatIconButton(Icons.Rounded.Add, "More", size = 36.dp, onStep = { onNudge(1) })
             }
-            RepeatIconButton(Icons.Rounded.Add, "More", size = 36.dp, onStep = { onNudge(1) })
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "P ${macros.protein.format()}g · C ${macros.carbs.format()}g · F ${macros.fat.format()}g · ${item.kcalPer100.format()} kcal/100g",
+            "P ${macros.protein.format()}g · C ${macros.carbs.format()}g · F ${macros.fat.format()}g · " +
+                if (item.typedTotal) "as you entered it" else "${item.kcalPer100.format()} kcal/100g",
             style = MaterialTheme.typography.labelMedium.merge(Numeric),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

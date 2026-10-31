@@ -2,12 +2,6 @@ package app.thermida.ui.dashboard
 
 import androidx.compose.ui.res.stringResource
 import app.thermida.R
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import app.thermida.ui.components.repeatOnHold
 import app.thermida.ui.components.RepeatIconButton
@@ -21,35 +15,17 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.runtime.Stable
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -57,7 +33,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.History
@@ -67,7 +42,6 @@ import java.time.Instant
 import java.time.ZoneId
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Restaurant
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -77,11 +51,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
-import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -90,12 +61,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.thermida.data.db.MealWithItems
 import app.thermida.data.db.macros
-import app.thermida.domain.MealType
 import app.thermida.domain.BodyCompositionCalc
 import app.thermida.domain.UserProfile
 import app.thermida.ui.components.MacroStat
@@ -107,7 +80,6 @@ import app.thermida.ui.components.ProgressLine
 import app.thermida.ui.components.RoundIconButton
 import app.thermida.ui.components.rememberHaptics
 import app.thermida.ui.components.SecondaryButton
-import app.thermida.ui.components.SectionTitle
 import app.thermida.ui.components.WeightChart
 import app.thermida.ui.components.format
 import app.thermida.ui.result.PhotoViewer
@@ -185,17 +157,19 @@ internal fun WaterCard(ml: Int, goalMl: Int, onAdd: () -> Unit, onUndo: () -> Un
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        if (ml < 1000) "$ml ml" else (ml / 1000.0).format(2).trimEnd('0').trimEnd('.', ',') + " L",
-                        style = MaterialTheme.typography.titleMedium.merge(Numeric),
-                    )
-                    Text(
-                        " / ${(goalMl / 1000.0).format(1)} L",
-                        style = MaterialTheme.typography.labelMedium.merge(Numeric),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                // One line of text, shrunk to fit with a large font size, so the goal never wraps apart.
+                val drunk = if (ml < 1000) "$ml ml" else (ml / 1000.0).format(2).trimEnd('0').trimEnd('.', ',') + " L"
+                val muted = MaterialTheme.colorScheme.onSurfaceVariant
+                val titleSize = MaterialTheme.typography.titleMedium.fontSize
+                Text(
+                    buildAnnotatedString {
+                        append(drunk)
+                        withStyle(SpanStyle(fontSize = 0.75.em, color = muted)) { append(" / ${(goalMl / 1000.0).format(1)} L") }
+                    },
+                    style = MaterialTheme.typography.titleMedium.merge(Numeric),
+                    maxLines = 1,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = titleSize),
+                )
                 Spacer(Modifier.height(6.dp))
                 ProgressLine(ml.toFloat() / goalMl.coerceAtLeast(1), Nutrient.Water, height = 5.dp)
             }
@@ -328,8 +302,17 @@ internal fun WeightCard(
 }
 
 @Composable
-internal fun WeightHistoryDialog(weighIns: List<WeightEntity>, profile: UserProfile?, onDelete: (Long) -> Unit, onDismiss: () -> Unit) {
+internal fun WeightHistoryDialog(
+    weighIns: List<WeightEntity>,
+    profile: UserProfile?,
+    onDelete: (WeightEntity) -> Unit,
+    /** Puts back a reading deleted by mistake. */
+    onUndo: (WeightEntity) -> Unit,
+    onDismiss: () -> Unit,
+) {
     val formatter = remember { DateTimeFormatter.ofPattern("EEE, MMM d · HH:mm", Locale.getDefault()) }
+    // The last reading deleted here, offered back until the dialog closes or another one goes.
+    var removed by remember { mutableStateOf<WeightEntity?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -361,10 +344,27 @@ internal fun WeightHistoryDialog(weighIns: List<WeightEntity>, profile: UserProf
                                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
-                            IconButton(onClick = { onDelete(entry.id) }) {
+                            IconButton(onClick = {
+                                removed = entry
+                                onDelete(entry)
+                            }) {
                                 Icon(Icons.Rounded.DeleteOutline, "Delete reading", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
+                    }
+                }
+                removed?.let { gone ->
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Deleted ${gone.kg.format(1)} kg",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = {
+                            removed = null
+                            onUndo(gone)
+                        }) { Text("Undo") }
                     }
                 }
             }

@@ -22,8 +22,6 @@ import kotlinx.coroutines.flow.callbackFlow
 class MiScaleScanner(private val context: Context) {
     private val adapter get() = context.getSystemService(BluetoothManager::class.java)?.adapter
 
-    val hasBluetooth get() = context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
-
     val permissionGranted
         get() = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
 

@@ -66,6 +66,9 @@ class ThermidaRepository(
 
     suspend fun deleteWeight(id: Long) = db.weights().delete(id)
 
+    /** A deleted weigh-in put back as it was (same day, time and body composition). */
+    suspend fun restoreWeight(entry: WeightEntity) = db.weights().insert(entry.copy(id = 0))
+
     suspend fun meal(id: Long) = db.meals().get(id)
 
     suspend fun mealCount() = db.meals().count()

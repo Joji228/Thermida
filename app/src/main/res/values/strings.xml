@@ -65,11 +65,9 @@
     <string name="later">Later</string>
     <string name="log_it">Log it</string>
     <string name="log_weight">Log weight</string>
-    <string name="meal_name">Meal name</string>
     <string name="meals">Meals</string>
     <string name="name">Name</string>
     <string name="name_this_meal">Name this meal</string>
-    <string name="not_in_the_list_enter_calories">Not in the list? Enter calories yourself</string>
     <string name="not_me">Not me</string>
     <string name="not_now">Not now</string>
     <string name="ok">OK</string>
@@ -82,7 +80,6 @@
     <string name="save">Save</string>
     <string name="thermida_is_up_to_date">Thermida is up to date</string>
     <string name="thermida_needs_the_camera_to_scan">Thermida needs the camera to scan your meals.</string>
-    <string name="search_a_food">Search a food</string>
     <string name="search_open_food_facts">Search Open Food Facts</string>
     <string name="service_address">Service address</string>
     <string name="settings">Settings</string>

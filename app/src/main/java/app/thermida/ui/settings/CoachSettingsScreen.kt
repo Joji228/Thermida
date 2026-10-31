@@ -29,7 +29,7 @@ import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material.icons.rounded.QuestionAnswer
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material.icons.rounded.Subject
+import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.AlertDialog
@@ -48,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -240,7 +239,7 @@ fun CoachSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     GroupedList(
                         rows = listOf(
                             {
-                                SettingBlock("Answer length", "Short is a few sentences; detailed allows about 150 words", Icons.Rounded.Subject) {
+                                SettingBlock("Answer length", "Short is a few sentences; detailed allows about 150 words", Icons.AutoMirrored.Rounded.Subject) {
                                     PillSelector(
                                         listOf(false, true),
                                         detailed,

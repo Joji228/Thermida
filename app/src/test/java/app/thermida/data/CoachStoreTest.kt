@@ -1,5 +1,8 @@
 package app.thermida.data
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,6 +33,17 @@ class CoachStoreTest {
         store.clear()
         assertTrue(store.load().isEmpty())
         assertFalse(File(dir, "chat.json").exists())
+    }
+
+    @Test
+    fun savesStartedTogetherNeverLeaveABrokenFile() = runBlocking {
+        val dir = File(folder.root, "coach")
+        val store = CoachStore(dir)
+        // Long chats, so unguarded writes to the shared temp file would overlap.
+        val chats = (1..20).map { n -> List(200) { CoachMessage(it % 2 == 0, "Message $it of chat $n ".repeat(20), it.toLong()) } }
+        chats.map { chat -> async(Dispatchers.IO) { store.save(chat) } }.awaitAll()
+        assertTrue(store.load() in chats)
+        assertFalse(File(dir, "chat.json.tmp").exists())
     }
 
     @Test

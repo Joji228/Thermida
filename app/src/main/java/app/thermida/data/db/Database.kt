@@ -86,9 +86,7 @@ data class WeightEntity(
     val muscleKg: Double? = null,
     val boneKg: Double? = null,
     val leanKg: Double? = null,
-) {
-    val hasComposition get() = fatPct != null
-}
+)
 
 fun FoodItemEntity.macros() =
     Macros(kcalPer100, proteinPer100, carbsPer100, fatPer100) * (grams / 100.0)

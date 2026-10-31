@@ -10,24 +10,11 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import app.thermida.ui.components.repeatOnHold
-import app.thermida.ui.components.RepeatIconButton
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -58,69 +45,34 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.foundation.layout.heightIn
-import app.thermida.data.db.WeightEntity
-import java.time.Instant
-import java.time.ZoneId
-import androidx.compose.material.icons.rounded.Remove
-import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.WaterDrop
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.thermida.data.db.MealWithItems
 import app.thermida.data.db.macros
 import app.thermida.domain.MealType
-import app.thermida.domain.BodyCompositionCalc
-import app.thermida.domain.UserProfile
-import app.thermida.ui.components.MacroStat
-import app.thermida.ui.components.ThermidaCard
-import app.thermida.ui.components.NumberStepper
-import app.thermida.ui.components.Pill
-import app.thermida.ui.components.PrimaryButton
-import app.thermida.ui.components.ProgressLine
 import app.thermida.ui.components.RoundIconButton
-import app.thermida.ui.components.rememberHaptics
-import app.thermida.ui.components.SecondaryButton
-import app.thermida.ui.components.SectionTitle
-import app.thermida.ui.components.WeightChart
 import app.thermida.ui.components.format
-import app.thermida.ui.result.PhotoViewer
 import app.thermida.ui.theme.Numeric
-import app.thermida.ui.theme.Nutrient
-import coil3.compose.AsyncImage
-import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -215,7 +167,6 @@ fun DashboardScreen(
     val smoothCharts by viewModel.smoothCharts.collectAsStateWithLifecycle()
     val voiceLanguage by viewModel.voiceLanguage.collectAsStateWithLifecycle(initialValue = VoiceLanguage.pick(null))
     val scaleEnabled by viewModel.scaleEnabled.collectAsStateWithLifecycle(initialValue = false)
-    val foodFactsOn by viewModel.foodFactsEnabled.collectAsStateWithLifecycle(initialValue = false)
     var showQuickAdd by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var showWeightDialog by remember { mutableStateOf(false) }
@@ -340,6 +291,7 @@ fun DashboardScreen(
             weighIns = state.plan.weighIns,
             profile = state.profile,
             onDelete = viewModel::deleteWeight,
+            onUndo = viewModel::restoreWeight,
             onDismiss = { showHistory = false },
         )
     }
@@ -348,7 +300,6 @@ fun DashboardScreen(
         val day = remember { state.date }
         val label = dayLabel(day, state.today)
         QuickAddDialog(
-            search = null,
             describe = viewModel::describeFood,
             recent = viewModel::recentFoods,
             onLogEstimate = { meal ->
@@ -360,11 +311,6 @@ fun DashboardScreen(
             voiceLanguage = voiceLanguage,
             onVoiceLanguage = viewModel::setVoiceLanguage,
             onDismiss = { showQuickAdd = false },
-            onLog = { fact, name, grams, type ->
-                viewModel.quickLog(fact, name, grams, type, day)
-                val kcal = (fact.kcalPer100 * grams / 100).format()
-                Toast.makeText(context, "Logged $name · $kcal kcal · $label", Toast.LENGTH_SHORT).show()
-            },
             onLogManual = { name, kcal, protein, carbs, fat, type ->
                 viewModel.manualLog(name, kcal, protein, carbs, fat, type, day)
                 Toast.makeText(context, "Logged $name · ${kcal.format()} kcal · $label", Toast.LENGTH_SHORT).show()
