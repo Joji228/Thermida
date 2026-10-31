@@ -74,6 +74,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import kotlin.math.roundToInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -570,7 +571,9 @@ private fun DescribeFood(
 /** Grams for one food line; a typed value that isn't a number yet is kept on screen but not applied. */
 @Composable
 private fun GramsField(grams: Double, onChange: (Double) -> Unit) {
-    var field by remember { mutableStateOf(grams.format()) }
+    var field by remember { mutableStateOf(gramsText(grams)) }
+    // A gram chip changes the amount from outside the box: show the new amount there too.
+    LaunchedEffect(grams) { gramsFieldUpdate(field, grams)?.let { field = it } }
     OutlinedTextField(
         value = field,
         onValueChange = { typed ->
@@ -585,6 +588,17 @@ private fun GramsField(grams: Double, onChange: (Double) -> Unit) {
         modifier = Modifier.width(120.dp),
     )
 }
+
+/**
+ * What the grams box should show once the amount is [grams], or null to leave [field] as typed: it
+ * already says that amount (perhaps half typed, like "12." or "12,5"), so rewriting it would move
+ * the cursor or undo what the user is typing.
+ */
+internal fun gramsFieldUpdate(field: String, grams: Double): String? =
+    if (field.replace(',', '.').toDoubleOrNull() == grams) null else gramsText(grams)
+
+/** Whole grams with no thousands separator, so the box reads back what it shows (a "1,000" would read as 1). */
+internal fun gramsText(grams: Double): String = grams.roundToInt().toString()
 
 /** Quick gram choices for one food: 50, 100, 150 and 200 g, and the whole package when Open Food Facts knows it. */
 @Composable
