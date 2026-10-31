@@ -71,7 +71,7 @@ fun CoachHint(onSkip: () -> Unit, modifier: Modifier = Modifier) {
     val primary = MaterialTheme.colorScheme.primary
     val density = LocalDensity.current
     val statusTop = WindowInsets.statusBars.getTop(density).toFloat()
-    val reach = with(density) { 72.dp.toPx() }
+    val reach = with(density) { 64.dp.toPx() }
     Box(
         modifier
             .fillMaxSize()
@@ -99,7 +99,7 @@ fun CoachHint(onSkip: () -> Unit, modifier: Modifier = Modifier) {
                     Icons.Rounded.TouchApp,
                     null,
                     Modifier
-                        .offset { IntOffset(22.dp.roundToPx(), (12.dp + 72.dp * travel.value).roundToPx()) }
+                        .offset { IntOffset(22.dp.roundToPx(), (12.dp + 64.dp * travel.value).roundToPx()) }
                         .size(40.dp)
                         .graphicsLayer {
                             alpha = 1f - snap.value
