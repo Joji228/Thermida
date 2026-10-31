@@ -276,7 +276,7 @@ private fun ThermidaNavHost(container: AppContainer, start: Any) {
                     bloomCenterY = pullCenterY(statusTop, pull.pull)
                     // A beat for the pop to show before the chat slides down over it.
                     scope.launch {
-                        delay(90)
+                        delay(40)
                         coachOpen = true
                     }
                     if (!coachTutorialDone) scope.launch { container.settings.setCoachTutorialDone() }

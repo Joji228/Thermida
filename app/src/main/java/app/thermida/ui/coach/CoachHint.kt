@@ -68,24 +68,31 @@ fun CoachHint(onSkip: () -> Unit, modifier: Modifier = Modifier) {
     }
 
     val primary = MaterialTheme.colorScheme.primary
+    val density = LocalDensity.current
+    val statusTop = WindowInsets.statusBars.getTop(density).toFloat()
+    val reach = with(density) { 72.dp.toPx() }
     Box(
         modifier
             .fillMaxSize()
             // Darkens the top a little so the demo reads over any screen.
-            .background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.72f), 0.55f to Color.Transparent))
-            .windowInsetsPadding(WindowInsets.statusBars),
+            .background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.72f), 0.55f to Color.Transparent)),
     ) {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        // The glow comes from the very top of the screen, like the real one.
+        Canvas(Modifier.fillMaxSize()) {
+            drawCoachGlow(statusTop + reach * travel.value, travel.value, hold.value, snap.value, primary)
+        }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.statusBars),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Box(
                 Modifier
                     .fillMaxWidth()
                     .height(190.dp),
                 contentAlignment = Alignment.TopCenter,
             ) {
-                val reach = with(LocalDensity.current) { 72.dp.toPx() }
-                Canvas(Modifier.fillMaxSize()) {
-                    drawCoachGlow(reach * travel.value, travel.value, hold.value, snap.value, primary)
-                }
                 // The finger, just under the glow, lifting off once the coach opens.
                 Icon(
                     Icons.Rounded.TouchApp,

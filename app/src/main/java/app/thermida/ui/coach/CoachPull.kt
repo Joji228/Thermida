@@ -3,9 +3,7 @@ package app.thermida.ui.coach
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -13,8 +11,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.MaterialTheme
@@ -121,11 +117,9 @@ class CoachPull internal constructor(
         scope.launch { hold.snapTo(0f) }
         finger = 0f
         if (pull == 0f) return
-        // No bounce: one that overshoots would take the glow past the top and bring it back faintly.
+        // Let go early and the glow fades straight back into the top edge.
         settleJob = scope.launch {
-            animate(pull, 0f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) { v, _ ->
-                pull = v.coerceAtLeast(0f)
-            }
+            animate(pull, 0f, animationSpec = tween(RETRACT_MS, easing = FastOutSlowInEasing)) { v, _ -> pull = v.coerceAtLeast(0f) }
         }
     }
 
@@ -168,7 +162,8 @@ class CoachPull internal constructor(
 
     internal companion object {
         const val RESISTANCE = 1.2f
-        const val HOLD_MS = 700
+        const val HOLD_MS = 400
+        const val RETRACT_MS = 200
         const val SNAP_MS = 300
     }
 }
@@ -243,13 +238,16 @@ internal fun DrawScope.drawCoachGlow(depth: Float, progress: Float, hold: Float,
     val reach = depth * (1f + 0.6f * snap)
     val strength = (0.22f + 0.32f * progress + 0.3f * hold) * (1f - snap)
     if (reach > 1f && strength > 0f) {
+        val top = -reach * 0.15f
+        val radius = reach * 1.5f + size.width * 0.18f
+        // Painted all the way to where the gradient has faded out, so it never ends in a hard edge.
         drawRect(
             Brush.radialGradient(
                 colorStops = arrayOf(0f to accent.copy(alpha = strength), 0.55f to accent.copy(alpha = strength * 0.35f), 1f to Color.Transparent),
-                center = Offset(cx, -reach * 0.15f),
-                radius = reach * 1.5f + size.width * 0.18f,
+                center = Offset(cx, top),
+                radius = radius,
             ),
-            size = Size(size.width, reach * 1.6f),
+            size = Size(size.width, top + radius),
         )
     }
     if (hold > 0f && snap == 0f) {
@@ -275,8 +273,8 @@ fun CoachPullBubble(state: CoachPull, showHint: Boolean, modifier: Modifier = Mo
     val accent = MaterialTheme.colorScheme.primary
     if (state.pull <= 0f && !state.popped) return
     val depth = top + state.pull
-    val height = with(density) { (depth * 2.2f).toDp() + 40.dp }
-    Box(modifier.fillMaxWidth().height(height)) {
+    // As tall as the screen, so the glow's soft fade is never cut short; it takes no touches.
+    Box(modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) { drawCoachGlow(depth, state.progress, state.hold.value, state.snap.value, accent) }
         if (showHint && !state.popped) {
             Text(
