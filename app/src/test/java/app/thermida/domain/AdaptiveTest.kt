@@ -109,4 +109,66 @@ class AdaptiveTest {
         assertTrue(adjusted.kcal < base.kcal)
         assertNull(Nutrition.targets(profile.copy(goalWeightKg = 90.0), 90.0, 0.9).weeksToGoal)
     }
+
+    @Test
+    fun theFirstWeekOfAPlanIsLeftOut() {
+        // Too early: nothing is measured until the first week is over.
+        val early = AdaptiveTdee.estimate(emptyList(), emptyList(), 2900.0, today, startedOn = today.minusDays(3))
+        assertNull(early.measuredTdee)
+        assertTrue(early.waitingFor!!.contains("first week"))
+
+        // A big water drop in the first week, then steady fat loss: the drop isn't counted.
+        val (steady, intakes) = simulate(trueTdee = 2600.0, eats = 2100.0, noiseKg = 0.0)
+        val started = today.minusDays(28)
+        val withWaterDrop = steady.map { if (it.date.isBefore(started.plusDays(7))) it.copy(kg = it.kg + 2.0) else it }
+        val counted = AdaptiveTdee.estimate(withWaterDrop, intakes, 2900.0, today, startedOn = started)
+        val fooled = AdaptiveTdee.estimate(withWaterDrop, intakes, 2900.0, today)
+        assertTrue("counted ${counted.measuredTdee}", abs(counted.measuredTdee!! - 2600) <= 150)
+        assertTrue("fooled ${fooled.measuredTdee}", fooled.measuredTdee!! > counted.measuredTdee!! + 300)
+    }
+}
+
+class SmartScheduleTest {
+    private val today = LocalDate.of(2026, 10, 31)
+
+    @Test
+    fun theFirstChangeIsASmallStepNotAJump() {
+        val (applied, changed) = SmartSchedule.next(null, desired = 0.85, today)
+        assertTrue(changed)
+        assertEquals(0.96, applied.scale, 1e-9)
+        assertEquals(today, applied.on)
+    }
+
+    @Test
+    fun itChangesAtMostOnceAWeek() {
+        val last = SmartSchedule.Applied(0.96, today.minusDays(3))
+        val (same, changed) = SmartSchedule.next(last, desired = 0.85, today)
+        assertFalse(changed)
+        assertEquals(last, same)
+        val (next, changedLater) = SmartSchedule.next(last, desired = 0.85, today.plusDays(4))
+        assertTrue(changedLater)
+        assertEquals(0.92, next.scale, 1e-9)
+    }
+
+    @Test
+    fun tinyDifferencesLeaveTheTargetAlone() {
+        val last = SmartSchedule.Applied(0.95, today.minusDays(14))
+        assertFalse(SmartSchedule.next(last, desired = 0.955, today).second)
+    }
+
+    @Test
+    fun itSettlesExactlyOnTheMeasuredBurn() {
+        val last = SmartSchedule.Applied(0.95, today.minusDays(7))
+        val (applied, changed) = SmartSchedule.next(last, desired = 0.97, today)
+        assertTrue(changed)
+        assertEquals(0.97, applied.scale, 1e-9)
+    }
+
+    @Test
+    fun changesSurviveBeingStored() {
+        val change = SmartSchedule.Change(today, 2290, 2210)
+        assertEquals(change, SmartSchedule.Change.decode(change.encode()))
+        assertFalse(change.up)
+        assertNull(SmartSchedule.Change.decode("not a change"))
+    }
 }

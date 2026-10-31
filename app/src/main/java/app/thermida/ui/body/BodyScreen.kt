@@ -236,7 +236,7 @@ fun BodyScreen(viewModel: BodyViewModel, onBack: () -> Unit) {
                             "Turn on the smart scale in Settings, then step on it barefoot with Thermida open to see body fat, muscle, water and more.",
                         )
                     } else {
-                        CompositionCard(entry.report, scans.getOrNull(index - 1)?.report, state.series)
+                        CompositionCard(entry.report, scans.getOrNull(index - 1)?.report, state.series, entry.date)
                         Text(
                             stringResource(R.string.estimated_from_your_weight_the_scale),
                             style = MaterialTheme.typography.bodySmall,
@@ -494,7 +494,7 @@ private fun ScoreRing(score: Int) {
 // ---- Composition list ----------------------------------------------------------------------------
 
 @Composable
-private fun CompositionCard(scan: BodyReport, previous: BodyReport?, series: Map<Metric, List<ChartPoint>>) {
+private fun CompositionCard(scan: BodyReport, previous: BodyReport?, series: Map<Metric, List<ChartPoint>>, date: LocalDate) {
     val rows = COMPOSITION_ROWS.mapNotNull { (main, extra) ->
         val reading = scan.readings.firstOrNull { it.metric == main } ?: return@mapNotNull null
         reading to extra.mapNotNull { m -> scan.readings.firstOrNull { it.metric == m } }
@@ -514,6 +514,8 @@ private fun CompositionCard(scan: BodyReport, previous: BodyReport?, series: Map
                 expanded = open == reading.metric,
                 points = series[reading.metric].orEmpty(),
                 onToggle = { open = if (open == reading.metric) null else reading.metric },
+                // A single body-fat reading swings with how hydrated you are; the trend is what to watch.
+                trend = if (reading.metric in TREND_IN_ROW) trendAt(series[reading.metric].orEmpty(), date) else null,
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -532,6 +534,8 @@ private fun MetricRow(
     shown: Reading = reading,
     /** Also shown small under the number, e.g. muscle as a share of weight. */
     share: Reading? = null,
+    /** Shown instead of the change since the last reading, which is mostly noise for this metric. */
+    trend: TrendNow? = null,
 ) {
     val metric = reading.metric
     fun Double.withUnit(m: Metric = shown.metric) = format(m.decimals) + if (m.unit.isEmpty()) "" else " ${m.unit}"
@@ -548,10 +552,17 @@ private fun MetricRow(
             Column(Modifier.weight(1f)) {
                 Text(metric.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val step = if (metric.decimals == 0) 0.5 else 0.05
-                val sub = listOfNotNull(
-                    share?.let { it.value.withUnit(it.metric) },
-                    change?.takeIf { abs(it) >= step }?.let { (if (it > 0) "+" else "−") + abs(it).withUnit() + if (share == null) " vs last" else "" },
-                ).joinToString(" · ")
+                val sub = if (trend != null) {
+                    listOfNotNull(
+                        "trend ${trend.value.withUnit()}",
+                        trend.change30?.takeIf { abs(it) >= step }?.let { (if (it > 0) "+" else "−") + abs(it).withUnit() + " in 30 days" },
+                    ).joinToString(" · ")
+                } else {
+                    listOfNotNull(
+                        share?.let { it.value.withUnit(it.metric) },
+                        change?.takeIf { abs(it) >= step }?.let { (if (it > 0) "+" else "−") + abs(it).withUnit() + if (share == null) " vs last" else "" },
+                    ).joinToString(" · ")
+                }
                 if (sub.isNotEmpty()) {
                     Text(sub, style = MaterialTheme.typography.labelSmall.merge(Numeric), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
@@ -686,3 +697,6 @@ private fun Tone.color() = when (this) {
     Tone.HIGH -> ToneColors.high
     Tone.VERY_HIGH -> ToneColors.veryHigh
 }
+
+/** Rows that show their smoothed trend under the number instead of the change since last time. */
+private val TREND_IN_ROW = setOf(Metric.FAT)

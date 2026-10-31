@@ -2,6 +2,7 @@ package app.thermida.domain
 
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -72,6 +73,8 @@ data class AdaptiveEstimate(
  * straight-line fit through the weigh-ins (so one salty dinner doesn't swing it, and unlike the
  * smoothed trend it doesn't lag behind a fresh start), skips days with no or partial logging,
  * and blends in gradually: 10 logged days give it about half weight, 21 or more full weight.
+ * The first week after starting is left out: early weight loss is mostly water and stored
+ * carbohydrate, not fat, and counting it would make the burn look far higher than it is.
  */
 object AdaptiveTdee {
     const val WINDOW_DAYS = 28
@@ -81,8 +84,22 @@ object AdaptiveTdee {
     private const val PARTIAL_DAY_KCAL = 800.0
     private const val KCAL_PER_KG = 7700.0
 
-    fun estimate(weighIns: List<WeighIn>, intakes: List<DayIntake>, formulaTdee: Double, today: LocalDate): AdaptiveEstimate {
-        val windowStart = today.minusDays(WINDOW_DAYS.toLong())
+    /** Days at the start of a plan whose weight change is mostly water, so they're left out. */
+    const val SETTLING_DAYS = 7
+
+    /** [startedOn] is when the plan began; its first [SETTLING_DAYS] days don't count. */
+    fun estimate(
+        weighIns: List<WeighIn>,
+        intakes: List<DayIntake>,
+        formulaTdee: Double,
+        today: LocalDate,
+        startedOn: LocalDate? = null,
+    ): AdaptiveEstimate {
+        val settled = startedOn?.plusDays(SETTLING_DAYS.toLong())
+        if (settled != null && today.isBefore(settled)) {
+            return AdaptiveEstimate(null, 0.0, 0, MIN_LOGGED_DAYS, "Starts after your first week, since early weight changes are mostly water")
+        }
+        val windowStart = listOfNotNull(today.minusDays(WINDOW_DAYS.toLong()), settled).max()
         val yesterday = today.minusDays(1)
         val trend = WeightTrend.compute(weighIns.filter { !it.date.isAfter(yesterday) })
         val inWindow = trend.filter { !it.date.isBefore(windowStart) }
@@ -122,4 +139,52 @@ object AdaptiveTdee {
     /** Formula burn moved toward the measured one by how much we trust the data. */
     fun blend(formulaTdee: Double, estimate: AdaptiveEstimate): Double =
         estimate.measuredTdee?.let { formulaTdee + estimate.confidence * (it - formulaTdee) } ?: formulaTdee
+}
+
+/**
+ * Moves the calorie target's smart correction (measured burn ÷ formula burn) towards what the data
+ * says once a week, in small steps, so the target never jumps when the estimate first switches on
+ * and never wobbles from one day to the next as new meals and weigh-ins come in.
+ */
+object SmartSchedule {
+    const val INTERVAL_DAYS = 7L
+
+    /** The largest weekly move, as a share of daily burn: about 100 kcal for most people. */
+    const val MAX_STEP = 0.04
+
+    /** Differences smaller than this (about 25 kcal) aren't worth changing the target for. */
+    const val DEADBAND = 0.01
+
+    /** The correction in use and the day it was last changed. */
+    data class Applied(val scale: Double, val on: LocalDate)
+
+    /** A change to the calorie target it made, for the Diary notice and the history in Settings. */
+    data class Change(val on: LocalDate, val oldKcal: Int, val newKcal: Int) {
+        val up get() = newKcal > oldKcal
+
+        /** Stored as "date|old|new". */
+        fun encode() = "$on|$oldKcal|$newKcal"
+
+        companion object {
+            /** Smaller moves aren't worth telling anyone about. */
+            const val NOTICE_KCAL = 10
+
+            fun decode(text: String): Change? = runCatching {
+                val (on, old, new) = text.split('|')
+                Change(LocalDate.parse(on), old.toInt(), new.toInt())
+            }.getOrNull()
+        }
+    }
+
+    /**
+     * The correction to use [today], and whether it changed today. With nothing applied yet the
+     * target starts from the formula, and the first step can happen straight away.
+     */
+    fun next(applied: Applied?, desired: Double, today: LocalDate): Pair<Applied, Boolean> {
+        val current = applied ?: Applied(1.0, today.minusDays(INTERVAL_DAYS))
+        val due = ChronoUnit.DAYS.between(current.on, today) >= INTERVAL_DAYS
+        val gap = desired - current.scale
+        if (!due || abs(gap) < DEADBAND) return current to false
+        return Applied(current.scale + gap.coerceIn(-MAX_STEP, MAX_STEP), today) to true
+    }
 }

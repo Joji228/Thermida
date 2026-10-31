@@ -24,6 +24,7 @@ import app.thermida.ui.components.HapticsSetting
 import app.thermida.update.AppUpdater
 import app.thermida.update.InstallStart
 import app.thermida.update.UpdateState
+import app.thermida.domain.SmartSchedule
 import app.thermida.domain.Targets
 import app.thermida.domain.UserProfile
 import app.thermida.ui.theme.AccentColor
@@ -48,6 +49,8 @@ data class SettingsState(
     val theme: ThemeMode = ThemeMode.DARK,
     val accent: AccentColor = AccentColor.Default,
     val scaleEnabled: Boolean = false,
+    /** The smart target's last change to the calorie target, if it made one. */
+    val smartLast: SmartSchedule.Change? = null,
 )
 
 /** The credit-left card at the top of the AI engine screen. */
@@ -83,11 +86,11 @@ class SettingsViewModel(private val app: AppContainer) : ViewModel() {
         app.settings.ai,
         app.settings.theme,
         app.settings.accent,
-        app.settings.scaleEnabled,
-    ) { plan, ai, theme, accent, scale ->
+        combine(app.settings.scaleEnabled, app.settings.smartHistory) { scale, history -> scale to history.firstOrNull() },
+    ) { plan, ai, theme, accent, (scale, smartLast) ->
         SettingsState(
             profile = plan.profile, targets = plan.targets, estimate = plan.estimate, ai = ai, theme = theme, accent = accent,
-            scaleEnabled = scale,
+            scaleEnabled = scale, smartLast = smartLast,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsState())
 

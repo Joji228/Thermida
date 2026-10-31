@@ -6,12 +6,14 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import app.thermida.domain.SmartSchedule
 import app.thermida.domain.UserProfile
 import app.thermida.ui.theme.AccentColor
 import kotlinx.coroutines.flow.Flow
@@ -92,6 +94,11 @@ class SettingsRepository(context: Context) {
     private val hapticsKey = booleanPreferencesKey("haptics_enabled")
     private val coachTutorialKey = booleanPreferencesKey("coach_tutorial_done")
     private val coachOpensKey = intPreferencesKey("coach_opens")
+    private val smartScaleKey = doublePreferencesKey("smart_scale")
+    private val smartScaleOnKey = stringPreferencesKey("smart_scale_on")
+    private val smartNoticeKey = stringPreferencesKey("smart_notice")
+    private val smartHistoryKey = stringPreferencesKey("smart_history")
+    private val smartHandedOverKey = booleanPreferencesKey("smart_handed_over")
     private val coachSpeakKey = booleanPreferencesKey("coach_speak")
     private val voiceLanguageKey = stringPreferencesKey("voice_language")
     private val handsFreeKey = booleanPreferencesKey("coach_hands_free")
@@ -162,6 +169,40 @@ class SettingsRepository(context: Context) {
 
     /** False until the user has pulled the coach down once after turning it on (the hint shows until then). */
     val coachTutorialDone: Flow<Boolean> = store.data.map { prefs -> prefs[coachTutorialKey] ?: false }.distinctUntilChanged()
+
+    /** The smart target's correction in use (see [SmartSchedule]), or null before its first change. */
+    val smartApplied: Flow<SmartSchedule.Applied?> = store.data.map { prefs ->
+        val scale = prefs[smartScaleKey]
+        val on = prefs[smartScaleOnKey]?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        if (scale != null && on != null) SmartSchedule.Applied(scale, on) else null
+    }.distinctUntilChanged()
+
+    /** False until the weekly steps have taken over from the old always-current smart target (see [handOverSmart]). */
+    val smartHandedOver: Flow<Boolean> = store.data.map { prefs -> prefs[smartHandedOverKey] ?: false }.distinctUntilChanged()
+
+    /**
+     * Once, on the first run with weekly steps: a smart target that was already working keeps the
+     * correction it had ([applied]), so updating the app doesn't move the calorie target.
+     */
+    suspend fun handOverSmart(applied: SmartSchedule.Applied?) {
+        store.edit { prefs ->
+            if (applied != null && prefs[smartScaleKey] == null) {
+                prefs[smartScaleKey] = applied.scale
+                prefs[smartScaleOnKey] = applied.on.toString()
+            }
+            prefs[smartHandedOverKey] = true
+        }
+    }
+
+    /** The smart target's latest change to the calorie target, until it's been seen on the Diary. */
+    val smartNotice: Flow<SmartSchedule.Change?> = store.data.map { prefs ->
+        prefs[smartNoticeKey]?.let { SmartSchedule.Change.decode(it) }
+    }.distinctUntilChanged()
+
+    /** The smart target's last few changes, newest first. */
+    val smartHistory: Flow<List<SmartSchedule.Change>> = store.data.map { prefs ->
+        prefs[smartHistoryKey].orEmpty().split(';').mapNotNull { SmartSchedule.Change.decode(it) }
+    }.distinctUntilChanged()
 
     /** How many times the coach has been pulled down; the pull's little hint shows the first few times. */
     val coachOpens: Flow<Int> = store.data.map { prefs -> prefs[coachOpensKey] ?: 0 }.distinctUntilChanged()
@@ -349,6 +390,26 @@ class SettingsRepository(context: Context) {
         store.edit { it[coachTutorialKey] = true }
     }
 
+    /**
+     * Stores the smart target's new correction. A change to the calorie target big enough to notice
+     * becomes the Diary notice and goes into the history (the last [SMART_HISTORY] changes).
+     */
+    suspend fun applySmartChange(applied: SmartSchedule.Applied, change: SmartSchedule.Change) {
+        store.edit { prefs ->
+            prefs[smartScaleKey] = applied.scale
+            prefs[smartScaleOnKey] = applied.on.toString()
+            if (kotlin.math.abs(change.newKcal - change.oldKcal) >= SmartSchedule.Change.NOTICE_KCAL) {
+                prefs[smartNoticeKey] = change.encode()
+                val history = listOf(change.encode()) + prefs[smartHistoryKey].orEmpty().split(';').filter { it.isNotBlank() }
+                prefs[smartHistoryKey] = history.take(SMART_HISTORY).joinToString(";")
+            }
+        }
+    }
+
+    suspend fun dismissSmartNotice() {
+        store.edit { it.remove(smartNoticeKey) }
+    }
+
     suspend fun countCoachOpen() {
         store.edit { it[coachOpensKey] = (it[coachOpensKey] ?: 0) + 1 }
     }
@@ -410,3 +471,6 @@ private class KeyCipher {
         }.getOrDefault("")
     }
 }
+
+/** How many of the smart target's changes Settings remembers. */
+private const val SMART_HISTORY = 8

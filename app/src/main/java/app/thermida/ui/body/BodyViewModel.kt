@@ -89,3 +89,18 @@ class BodyViewModel(private val app: AppContainer) : ViewModel() {
         )
     }
 }
+
+/** A metric's smoothed trend on a day, and how far it moved over the 30 days before. */
+internal data class TrendNow(val value: Double, val change30: Double?)
+
+/**
+ * The trend in [points] as of [date], once there are at least three readings up to then (fewer
+ * is too little to smooth); the 30-day change only when the history goes back that far.
+ */
+internal fun trendAt(points: List<ChartPoint>, date: LocalDate): TrendNow? {
+    val upTo = points.filter { !it.date.isAfter(date) }
+    if (upTo.size < 3) return null
+    val now = upTo.last().trend
+    val then = upTo.lastOrNull { !it.date.isAfter(date.minusDays(30)) }?.trend
+    return TrendNow(now, then?.let { now - it })
+}

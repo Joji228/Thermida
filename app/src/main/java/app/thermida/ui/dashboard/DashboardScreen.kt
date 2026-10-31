@@ -211,6 +211,7 @@ fun DashboardScreen(
     onOpenBody: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val smartNotice by viewModel.smartNotice.collectAsStateWithLifecycle()
     val voiceLanguage by viewModel.voiceLanguage.collectAsStateWithLifecycle(initialValue = VoiceLanguage.pick(null))
     val scaleEnabled by viewModel.scaleEnabled.collectAsStateWithLifecycle(initialValue = false)
     val foodFactsOn by viewModel.foodFactsEnabled.collectAsStateWithLifecycle(initialValue = false)
@@ -269,6 +270,9 @@ fun DashboardScreen(
             }
             // Until the first real numbers arrive, show nothing rather than placeholder targets.
             if (state.loading) return@LazyColumn
+            smartNotice?.takeIf { state.date == state.today }?.let { change ->
+                item(key = "smart_notice") { SmartTargetNotice(change, onDismiss = viewModel::dismissSmartNotice) }
+            }
             item { CaloriesCard(state) }
             item {
                 WaterCard(

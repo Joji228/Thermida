@@ -105,6 +105,7 @@ import androidx.compose.material.icons.rounded.Restaurant
 import app.thermida.ui.update.UpdateDialog
 import java.time.LocalDate
 import kotlin.math.roundToInt
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun SettingsScreen(
@@ -194,12 +195,17 @@ fun SettingsScreen(
                                 title = "Smart target",
                                 subtitle = when {
                                     p?.smartTarget == false -> "Off. Your calories use the standard formula only"
+                                    p?.customKcal != null -> "Paused while you use your own calorie target"
                                     estimate == null -> "Tunes your daily calories to how your body really responds"
                                     estimate.active -> "Your real burn is about ${estimate.measuredTdee!!.format()} kcal a day, " +
-                                        "measured from your meals and weigh-ins (${(estimate.confidence * 100).roundToInt()}% trusted)"
+                                        "measured from your meals and weigh-ins (${(estimate.confidence * 100).roundToInt()}% trusted). " +
+                                        "It adjusts your target at most once a week, in small steps."
                                     else -> "Learning your real burn. ${estimate.waitingFor} " +
                                         "(${estimate.daysLogged} of ${estimate.daysNeeded} days of meals logged)"
-                                },
+                                } + (state.smartLast?.takeIf { p?.smartTarget == true }?.let { last ->
+                                    " Last change, ${last.on.format(DateTimeFormatter.ofPattern("MMM d"))}: " +
+                                        "${last.oldKcal.format()} → ${last.newKcal.format()} kcal."
+                                } ?: ""),
                                 checked = p?.smartTarget != false,
                                 onChange = { on -> viewModel.updateProfile { it.copy(smartTarget = on) } },
                                 icon = Icons.Rounded.Psychology,
