@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +38,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,22 +45,24 @@ import kotlinx.coroutines.delay
 
 /**
  * Shown once after the coach is turned on, until the user pulls it down for the first time: a
- * finger drags the drop down on its stretching neck past the line, lets go, and the drop snaps free,
- * on a loop. Nothing here takes touches except Skip, so the real gesture works right through it.
+ * finger pulls the glow down past the line and holds while the line along the top fills, then the
+ * glow swells and fades, on a loop. Nothing here takes touches except Skip, so the real gesture
+ * works right through it.
  */
 @Composable
 fun CoachHint(onSkip: () -> Unit, modifier: Modifier = Modifier) {
-    // 0 to 1 on the way to the line, then on to 1.6 for the stretch past it.
     val travel = remember { Animatable(0f) }
+    val hold = remember { Animatable(0f) }
     val snap = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         delay(400)
         while (true) {
             travel.snapTo(0f)
+            hold.snapTo(0f)
             snap.snapTo(0f)
-            travel.animateTo(1.6f, tween(900, easing = FastOutSlowInEasing))
-            delay(150)
-            snap.animateTo(1f, tween(CoachPull.SNAP_MS, easing = LinearEasing))
+            travel.animateTo(1f, tween(750, easing = FastOutSlowInEasing))
+            hold.animateTo(1f, tween(CoachPull.HOLD_MS, easing = LinearEasing))
+            snap.animateTo(1f, tween(CoachPull.SNAP_MS, easing = FastOutSlowInEasing))
             delay(900)
         }
     }
@@ -82,37 +82,20 @@ fun CoachHint(onSkip: () -> Unit, modifier: Modifier = Modifier) {
                     .height(190.dp),
                 contentAlignment = Alignment.TopCenter,
             ) {
-                val popped = snap.value > 0f
-                val reach = with(LocalDensity.current) { 64.dp.toPx() }
-                val sparkle = rememberVectorPainter(Icons.Rounded.AutoAwesome)
-                val fill = MaterialTheme.colorScheme.surfaceContainerHighest
-                Canvas(
-                    Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = if (popped) (1f - snap.value * 1.5f).coerceIn(0f, 1f) else travel.value.coerceIn(0.25f, 1f) },
-                ) {
-                    val progress = travel.value.coerceAtMost(1f)
-                    val strain = ((travel.value - 1f) / 0.6f).coerceIn(0f, 1f)
-                    val pulled = reach * (progress + 0.6f * strain)
-                    drawCoachDrop(
-                        DropLook(progress, strain, snap.value, popped, armed = if (travel.value >= 1f) 1f else 0f),
-                        centerY = pulled + 0.7f * BUBBLE_DP.dp.toPx(),
-                        fill = fill,
-                        accent = primary,
-                        sparkle = sparkle,
-                    )
+                val reach = with(LocalDensity.current) { 72.dp.toPx() }
+                Canvas(Modifier.fillMaxSize()) {
+                    drawCoachGlow(reach * travel.value, travel.value, hold.value, snap.value, primary)
                 }
-                // The finger, a step behind the drop, lifting off as it snaps free.
-                val y = 12.dp + 64.dp * (travel.value.coerceAtMost(1f) + 0.6f * ((travel.value - 1f) / 0.6f).coerceIn(0f, 1f))
+                // The finger, just under the glow, lifting off once the coach opens.
                 Icon(
                     Icons.Rounded.TouchApp,
                     null,
                     Modifier
-                        .offset(x = 22.dp, y = y + 30.dp)
+                        .offset(x = 22.dp, y = 12.dp + 72.dp * travel.value)
                         .size(40.dp)
                         .graphicsLayer {
-                            alpha = if (popped) 1f - snap.value else 1f
-                            translationY = if (popped) -16.dp.toPx() * snap.value else 0f
+                            alpha = 1f - snap.value
+                            translationY = -16.dp.toPx() * snap.value
                         },
                     tint = Color.White,
                 )
@@ -126,7 +109,7 @@ fun CoachHint(onSkip: () -> Unit, modifier: Modifier = Modifier) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(stringResource(R.string.pull_down_and_let_go), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text(stringResource(R.string.pull_down_and_hold), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                 Text(
                     stringResource(R.string.drag_down_anywhere_on_the_screen),
                     style = MaterialTheme.typography.bodyMedium,

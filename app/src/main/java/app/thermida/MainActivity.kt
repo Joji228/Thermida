@@ -88,13 +88,11 @@ import app.thermida.ui.coach.rememberCoachPull
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.Canvas
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
@@ -117,7 +115,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import app.thermida.ui.coach.BUBBLE_DP
-import app.thermida.ui.coach.bubbleCenterY
+import app.thermida.ui.coach.pullCenterY
 import kotlin.math.hypot
 import kotlin.math.max
 import androidx.compose.animation.ExitTransition
@@ -270,13 +268,12 @@ private fun ThermidaNavHost(container: AppContainer, start: Any) {
             .coachPull(
                 pull,
                 enabled = coachOn && coachHere && !coachOpen,
-                // Light ticks on the way down, a firm click at the line, a soft thud as it opens.
-                onStep = { haptics.tick() },
-                onArm = { haptics.click() },
+                // Just two light ticks: reaching the line, and the coach opening.
+                onArm = { haptics.tick() },
                 onPop = {
-                    haptics.thud()
+                    haptics.tick()
                     // The chat opens out of the bubble: remember where it is.
-                    bloomCenterY = bubbleCenterY(statusTop, pull.pull, density)
+                    bloomCenterY = pullCenterY(statusTop, pull.pull)
                     // A beat for the pop to show before the chat slides down over it.
                     scope.launch {
                         delay(90)
@@ -613,12 +610,10 @@ private fun DropGlow(shown: () -> Float, lifted: () -> Float, bubbleY: Float, st
 
 /**
  * What makes the drop look wet, drawn over it: light gathering just inside the edge (a gradient, never
- * a line), a small curved gleam on its upper left, and the bubble's sparkle swelling and fading as the
- * drop grows, and coming back as it closes.
+ * a line) and a small curved gleam on its upper left.
  */
 @Composable
 private fun DropSheen(shown: () -> Float, lifted: () -> Float, bubbleY: Float, startRadius: Float, accent: Color) {
-    val sparkle = rememberVectorPainter(Icons.Rounded.AutoAwesome)
     Canvas(Modifier.fillMaxSize()) {
         val s = shown()
         val up = lifted()
@@ -649,13 +644,6 @@ private fun DropSheen(shown: () -> Float, lifted: () -> Float, bubbleY: Float, s
                 style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round),
             )
         }
-        val sparkleAlpha = (1f - s * 3.2f).coerceIn(0f, 1f) * (1f - up)
-        if (sparkleAlpha > 0f) {
-            val px = 24.dp.toPx() * (1f + 2.4f * s) * (1f - 0.5f * up)
-            translate(d.center.x - px / 2f, d.center.y - px / 2f) {
-                with(sparkle) { draw(Size(px, px), alpha = sparkleAlpha, colorFilter = ColorFilter.tint(accent)) }
-            }
-        }
     }
 }
 
@@ -665,7 +653,7 @@ private const val CLOSE_MS = 420
 private const val LIFT_MS = 300
 private const val LIFT_OVERLAP_MS = 140
 
-/** The pull says "Pull for coach" / "Release to ask" until the coach has been opened this many times. */
+/** The pull says "Pull down for coach" / "Keep holding" until the coach has been opened this many times. */
 private const val PULL_HINT_OPENS = 5
 
 /** Slow start so the drop is seen leaving the bubble, then a soft landing at the corners. */
