@@ -598,7 +598,8 @@ fun ListRow(
 /**
  * Weight over time: a [line] through the weigh-ins with a soft fill, a dot on each of the
  * [weighIns] (they sit on the line), a bigger dot on the latest point, and a dashed goal line.
- * X values are epoch days (fractions allowed).
+ * X values are epoch days (fractions allowed). With [greyDots] (the line is the smoothed trend) the
+ * weigh-in dots are grey, so the line stands out and the dots read as the raw readings around it.
  */
 @Composable
 fun WeightChart(
@@ -607,9 +608,11 @@ fun WeightChart(
     goal: Double,
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary,
+    greyDots: Boolean = false,
 ) {
     val points = line
     val grid = MaterialTheme.colorScheme.outlineVariant
+    val dotColor = if (greyDots) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else color
     val goalColor = MaterialTheme.colorScheme.onSurfaceVariant
     Canvas(modifier) {
         if (points.isEmpty()) return@Canvas
@@ -654,7 +657,7 @@ fun WeightChart(
             if (weighIns.size <= MAX_WEIGH_IN_DOTS) {
                 // Smaller when they're packed close together.
                 val radius = (if (weighIns.size > 35) 2.2.dp else 3.2.dp).toPx()
-                weighIns.forEach { (t, v) -> drawCircle(color, radius = radius, center = Offset(x(t), y(v))) }
+                weighIns.forEach { (t, v) -> drawCircle(dotColor, radius = radius, center = Offset(x(t), y(v))) }
             }
         }
         val last = points.last()

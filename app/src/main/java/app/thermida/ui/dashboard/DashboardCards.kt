@@ -277,6 +277,7 @@ internal fun WeightCard(
                 line = chart.points,
                 weighIns = chart.weighIns,
                 goal = profile.goalWeightKg,
+                greyDots = smooth,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(96.dp),

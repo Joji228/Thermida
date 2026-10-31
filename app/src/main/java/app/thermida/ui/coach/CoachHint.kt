@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
@@ -98,7 +99,7 @@ fun CoachHint(onSkip: () -> Unit, modifier: Modifier = Modifier) {
                     Icons.Rounded.TouchApp,
                     null,
                     Modifier
-                        .offset(x = 22.dp, y = 12.dp + 72.dp * travel.value)
+                        .offset { IntOffset(22.dp.roundToPx(), (12.dp + 72.dp * travel.value).roundToPx()) }
                         .size(40.dp)
                         .graphicsLayer {
                             alpha = 1f - snap.value
