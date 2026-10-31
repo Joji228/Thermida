@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.TouchApp
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,31 +39,31 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
  * Shown once after the coach is turned on, until the user pulls it down for the first time: a
- * finger drags a ghost bubble down, holds while its ring fills, and the bubble pops, on a loop.
- * Nothing here takes touches except Skip, so the real gesture works right through it.
+ * finger drags the drop down on its stretching neck past the line, lets go, and the drop snaps free,
+ * on a loop. Nothing here takes touches except Skip, so the real gesture works right through it.
  */
 @Composable
 fun CoachHint(onSkip: () -> Unit, modifier: Modifier = Modifier) {
+    // 0 to 1 on the way to the line, then on to 1.6 for the stretch past it.
     val travel = remember { Animatable(0f) }
-    val ring = remember { Animatable(0f) }
-    val pop = remember { Animatable(0f) }
+    val snap = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         delay(400)
         while (true) {
             travel.snapTo(0f)
-            ring.snapTo(0f)
-            pop.snapTo(0f)
-            travel.animateTo(1f, tween(650, easing = FastOutSlowInEasing))
-            ring.animateTo(1f, tween(CoachPull.HOLD_MS, easing = LinearEasing))
-            launch { pop.animateTo(1f, tween(CoachPull.BURST_MS)) }
-            delay(1_100)
+            snap.snapTo(0f)
+            travel.animateTo(1.6f, tween(900, easing = FastOutSlowInEasing))
+            delay(150)
+            snap.animateTo(1f, tween(CoachPull.SNAP_MS, easing = LinearEasing))
+            delay(900)
         }
     }
 
@@ -82,39 +82,38 @@ fun CoachHint(onSkip: () -> Unit, modifier: Modifier = Modifier) {
                     .height(190.dp),
                 contentAlignment = Alignment.TopCenter,
             ) {
-                val y = 12.dp + 110.dp * travel.value
-                // The ghost bubble, a step ahead of the finger.
-                Box(
+                val popped = snap.value > 0f
+                val reach = with(LocalDensity.current) { 64.dp.toPx() }
+                val sparkle = rememberVectorPainter(Icons.Rounded.AutoAwesome)
+                val fill = MaterialTheme.colorScheme.surfaceContainerHighest
+                Canvas(
                     Modifier
-                        .offset(y = y)
-                        .size(52.dp)
-                        .graphicsLayer {
-                            val grow = if (pop.value > 0f) 1f + 0.5f * pop.value else 0.55f + 0.45f * travel.value
-                            scaleX = grow
-                            scaleY = grow
-                            alpha = if (pop.value > 0f) (1f - pop.value * 1.6f).coerceIn(0f, 1f) else travel.value.coerceAtLeast(0.25f)
-                        }
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape),
-                    contentAlignment = Alignment.Center,
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = if (popped) (1f - snap.value * 1.5f).coerceIn(0f, 1f) else travel.value.coerceIn(0.25f, 1f) },
                 ) {
-                    if (ring.value > 0f) {
-                        CircularProgressIndicator(
-                            progress = { ring.value },
-                            modifier = Modifier.size(52.dp),
-                            strokeWidth = 3.dp,
-                            color = primary,
-                            trackColor = primary.copy(alpha = 0.18f),
-                        )
-                    }
-                    Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(24.dp), tint = primary)
+                    val progress = travel.value.coerceAtMost(1f)
+                    val strain = ((travel.value - 1f) / 0.6f).coerceIn(0f, 1f)
+                    val pulled = reach * (progress + 0.6f * strain)
+                    drawCoachDrop(
+                        DropLook(progress, strain, snap.value, popped, armed = if (travel.value >= 1f) 1f else 0f),
+                        centerY = pulled + 0.7f * BUBBLE_DP.dp.toPx(),
+                        fill = fill,
+                        accent = primary,
+                        sparkle = sparkle,
+                    )
                 }
+                // The finger, a step behind the drop, lifting off as it snaps free.
+                val y = 12.dp + 64.dp * (travel.value.coerceAtMost(1f) + 0.6f * ((travel.value - 1f) / 0.6f).coerceIn(0f, 1f))
                 Icon(
                     Icons.Rounded.TouchApp,
                     null,
                     Modifier
-                        .offset(x = 18.dp, y = y + 34.dp)
+                        .offset(x = 22.dp, y = y + 30.dp)
                         .size(40.dp)
-                        .graphicsLayer { alpha = if (pop.value > 0f) 1f - pop.value else 1f },
+                        .graphicsLayer {
+                            alpha = if (popped) 1f - snap.value else 1f
+                            translationY = if (popped) -16.dp.toPx() * snap.value else 0f
+                        },
                     tint = Color.White,
                 )
             }
@@ -127,7 +126,7 @@ fun CoachHint(onSkip: () -> Unit, modifier: Modifier = Modifier) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(stringResource(R.string.pull_down_and_hold), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text(stringResource(R.string.pull_down_and_let_go), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                 Text(
                     stringResource(R.string.drag_down_anywhere_on_the_screen),
                     style = MaterialTheme.typography.bodyMedium,

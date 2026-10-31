@@ -38,10 +38,19 @@ class Haptics(private val view: View) {
 
     fun click() = play(VibrationEffect.EFFECT_HEAVY_CLICK, HapticFeedbackConstants.LONG_PRESS)
 
+    /** A soft, low bump, like something landing: the coach opening. A firm click where it isn't supported. */
+    fun thud() {
+        val v = vibrator
+        if (v == null || !v.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_THUD)) return click()
+        play(VibrationEffect.startComposition().addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.8f).compose(), HapticFeedbackConstants.CONFIRM)
+    }
+
     /** A switch: firm when it goes on, light when it goes off, so the two feel different. */
     fun toggle(on: Boolean) = if (on) click() else tick()
 
-    private fun play(effect: Int, fallbackConstant: Int) {
+    private fun play(effect: Int, fallbackConstant: Int) = play(VibrationEffect.createPredefined(effect), fallbackConstant)
+
+    private fun play(e: VibrationEffect, fallbackConstant: Int) {
         if (!HapticsSetting.enabled) return
         val v = vibrator
         if (v == null) {
@@ -49,7 +58,6 @@ class Haptics(private val view: View) {
             return
         }
         runCatching {
-            val e = VibrationEffect.createPredefined(effect)
             if (Build.VERSION.SDK_INT >= 33) {
                 v.vibrate(e, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_MEDIA))
             } else {

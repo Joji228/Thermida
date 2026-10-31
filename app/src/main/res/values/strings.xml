@@ -40,7 +40,7 @@
     <string name="describe_the_meal">Describe the meal</string>
     <string name="done">Done</string>
     <string name="download">Download</string>
-    <string name="drag_down_anywhere_on_the_screen">Drag down anywhere on the screen, hold for a moment, and your coach pops in. Try it now.</string>
+    <string name="drag_down_anywhere_on_the_screen">Drag down anywhere on the screen. When the drop breaks free, let go and your coach opens. Try it now.</string>
     <string name="e_g_homemade_lasagna">e.g. Homemade lasagna</string>
     <string name="enter_manually">Enter manually</string>
     <string name="erase_everything">Erase everything?</string>
@@ -76,7 +76,7 @@
     <string name="or_type_a_model_name">Or type a model name</string>
     <string name="paste_your_key">Paste your key</string>
     <string name="per_100_g">Per 100 g</string>
-    <string name="pull_down_and_hold">Pull down and hold</string>
+    <string name="pull_down_and_let_go">Pull down, then let go</string>
     <string name="remove">Remove</string>
     <string name="retry">Retry</string>
     <string name="save">Save</string>

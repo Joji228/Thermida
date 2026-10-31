@@ -246,6 +246,7 @@ private fun ThermidaNavHost(container: AppContainer, start: Any) {
     // The AI coach (beta): pulled down from the top of any screen except Settings and setup.
     val coachOn by container.settings.coachEnabled.collectAsStateWithLifecycle(initialValue = false)
     val coachTutorialDone by container.settings.coachTutorialDone.collectAsStateWithLifecycle(initialValue = true)
+    val coachOpens by container.settings.coachOpens.collectAsStateWithLifecycle(initialValue = PULL_HINT_OPENS)
     var coachOpen by rememberSaveable { mutableStateOf(false) }
     val coachHere = onToday || onScan || destination?.hasRoute<BodyRoute>() == true || destination?.hasRoute<ResultRoute>() == true
     LaunchedEffect(coachOn) { if (!coachOn) coachOpen = false }
@@ -269,18 +270,20 @@ private fun ThermidaNavHost(container: AppContainer, start: Any) {
             .coachPull(
                 pull,
                 enabled = coachOn && coachHere && !coachOpen,
-                // A light tick when the pull reaches the line, a firm click when the bubble pops.
-                onArm = { haptics.tick() },
+                // Light ticks on the way down, a firm click at the line, a soft thud as it opens.
+                onStep = { haptics.tick() },
+                onArm = { haptics.click() },
                 onPop = {
-                    haptics.click()
+                    haptics.thud()
                     // The chat opens out of the bubble: remember where it is.
                     bloomCenterY = bubbleCenterY(statusTop, pull.pull, density)
                     // A beat for the pop to show before the chat slides down over it.
                     scope.launch {
-                        delay(40)
+                        delay(90)
                         coachOpen = true
                     }
                     if (!coachTutorialDone) scope.launch { container.settings.setCoachTutorialDone() }
+                    if (coachOpens < PULL_HINT_OPENS) scope.launch { container.settings.countCoachOpen() }
                 },
             ),
     ) {
@@ -426,7 +429,7 @@ private fun ThermidaNavHost(container: AppContainer, start: Any) {
             AutoWeighIn(container, onOpenBody = { nav.navigate(BodyRoute) { launchSingleTop = true } })
         }
 
-        if (coachOn && !coachTutorialDone && coachHere && !coachOpen && !pull.popped) {
+        if (coachOn && !coachTutorialDone && coachHere && !coachOpen && !pull.popped && pull.pull <= 0f) {
             CoachHint(onSkip = { scope.launch { container.settings.setCoachTutorialDone() } })
         }
         // The chat is a drop of liquid. It swells out of the pull bubble until it fills everything, and
@@ -549,7 +552,7 @@ private fun ThermidaNavHost(container: AppContainer, start: Any) {
                 DropSheen(shown, lifted, bloomCenterY, bubbleRadius, accent)
             }
         }
-        CoachPullBubble(pull, Modifier.align(Alignment.TopCenter))
+        CoachPullBubble(pull, showHint = coachOpens < PULL_HINT_OPENS, Modifier.align(Alignment.TopCenter))
     }
 }
 
@@ -661,6 +664,9 @@ private const val BLOOM_MS = 620
 private const val CLOSE_MS = 420
 private const val LIFT_MS = 300
 private const val LIFT_OVERLAP_MS = 140
+
+/** The pull says "Pull for coach" / "Release to ask" until the coach has been opened this many times. */
+private const val PULL_HINT_OPENS = 5
 
 /** Slow start so the drop is seen leaving the bubble, then a soft landing at the corners. */
 private val BloomEasing = FastOutSlowInEasing

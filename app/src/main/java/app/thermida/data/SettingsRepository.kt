@@ -91,6 +91,7 @@ class SettingsRepository(context: Context) {
     private val weeklyLimitKey = longPreferencesKey("ai_weekly_limit")
     private val hapticsKey = booleanPreferencesKey("haptics_enabled")
     private val coachTutorialKey = booleanPreferencesKey("coach_tutorial_done")
+    private val coachOpensKey = intPreferencesKey("coach_opens")
     private val coachSpeakKey = booleanPreferencesKey("coach_speak")
     private val voiceLanguageKey = stringPreferencesKey("voice_language")
     private val handsFreeKey = booleanPreferencesKey("coach_hands_free")
@@ -161,6 +162,9 @@ class SettingsRepository(context: Context) {
 
     /** False until the user has pulled the coach down once after turning it on (the hint shows until then). */
     val coachTutorialDone: Flow<Boolean> = store.data.map { prefs -> prefs[coachTutorialKey] ?: false }.distinctUntilChanged()
+
+    /** How many times the coach has been pulled down; the pull's little hint shows the first few times. */
+    val coachOpens: Flow<Int> = store.data.map { prefs -> prefs[coachOpensKey] ?: 0 }.distinctUntilChanged()
 
     val ai: Flow<AiSettings> = store.data.map { prefs ->
         AiSettings(
@@ -343,6 +347,10 @@ class SettingsRepository(context: Context) {
 
     suspend fun setCoachTutorialDone() {
         store.edit { it[coachTutorialKey] = true }
+    }
+
+    suspend fun countCoachOpen() {
+        store.edit { it[coachOpensKey] = (it[coachOpensKey] ?: 0) + 1 }
     }
 
     suspend fun setPrimary(provider: Provider) {
