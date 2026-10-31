@@ -28,8 +28,24 @@ class WeighInDetector(
     private var settledAt = 0L
     private var lastDoneKg: Double? = null
     private var lastDoneAt = Long.MIN_VALUE / 2
+    private var retaking = false
+
+    /**
+     * The last weigh-in is being taken again (say, socks off): the next time someone steps on, it
+     * counts even though it's within the repeat window and close to the last weight. The scale's
+     * repeats of the old frame are stable, so they're still ignored until a changing weight shows
+     * someone stepping on.
+     */
+    fun retake() {
+        retaking = true
+        settledKg = null
+    }
 
     fun onReading(reading: MiScaleReading, now: Long): Event? {
+        if (retaking && !reading.stable && reading.weightKg >= ON_SCALE_KG) {
+            retaking = false
+            lastDoneKg = null
+        }
         val doneKg = lastDoneKg
         if (doneKg != null && now - lastDoneAt < repeatGuardMs && abs(reading.weightKg - doneKg) < REPEAT_KG) return null
         return when {
@@ -69,6 +85,9 @@ class WeighInDetector(
 
         /** A new weigh-in within the repeat window has to differ by at least this much to count (someone else). */
         private const val REPEAT_KG = 1.0
+
+        /** A changing weight above this is someone stepping on, not the scale settling back to zero. */
+        private const val ON_SCALE_KG = 5.0
 
         /** Auto-saved only when this close to your latest weigh-in; anything further is checked with you first. */
         const val SAME_PERSON_KG = 5.0

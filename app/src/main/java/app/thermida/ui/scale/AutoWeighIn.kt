@@ -65,6 +65,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import app.thermida.AppContainer
 import app.thermida.ble.WeighInDetector
 import app.thermida.domain.BodyCompositionCalc
+import app.thermida.domain.ImpedanceCheck
 import app.thermida.ui.components.ProgressLine
 import app.thermida.ui.components.RoundIconButton
 import app.thermida.ui.theme.Numeric
@@ -73,6 +74,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -82,6 +84,18 @@ import kotlin.math.sin
 /** Where the weigh-in on the scale is. */
 private enum class Stage { WEIGHING, MEASURING, DONE }
 
+/** A saved weigh-in whose body composition is missing or doubtful, offered to be taken again. */
+internal sealed interface Notice {
+    val id: Long
+    val kg: Double
+
+    /** No impedance came through: socks, shoes or very dry feet. */
+    data class NotBarefoot(override val id: Long, override val kg: Double) : Notice
+
+    /** The impedance is far from your usual one, so body fat is likely off. */
+    data class Unusual(override val id: Long, override val kg: Double) : Notice
+}
+
 /**
  * Hands-free weigh-ins: while Thermida is open on screen and the smart scale is turned on in
  * Settings, it listens for the scale. As soon as someone steps on, a full-screen dial follows the
@@ -89,7 +103,8 @@ private enum class Stage { WEIGHING, MEASURING, DONE }
  * It never listens in the background: scanning stops as soon as the app leaves the screen.
  *
  * A weigh-in more than 5 kg from your latest one might be someone else on your scale, so that one
- * is checked with you before it's saved.
+ * is checked with you before it's saved. When body composition couldn't be measured (not barefoot)
+ * or came out far from your usual, it says so and offers to weigh again.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @Composable
@@ -103,6 +118,9 @@ fun AutoWeighIn(container: AppContainer, onOpenBody: () -> Unit) {
     var dismissed by remember { mutableStateOf(false) }
     var lastFrameAt by remember { mutableLongStateOf(0L) }
     var askAbout by remember { mutableStateOf<WeighInDetector.Event.Done?>(null) }
+    var notice by remember { mutableStateOf<Notice?>(null) }
+    // "Weigh again" tells the running detector to count the next step-on.
+    val retakes = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
     // Scans in battery-friendly bursts until the scale is heard, then continuously while it's in use.
     val fastScan = remember { MutableStateFlow(false) }
 
@@ -113,15 +131,28 @@ fun AutoWeighIn(container: AppContainer, onOpenBody: () -> Unit) {
     }
 
     fun save(done: WeighInDetector.Event.Done) = scope.launch {
-        val profile = container.plans.plan.first().profile
-        val composition = profile?.let { BodyCompositionCalc.compute(done.kg, done.impedance, it) }
-        container.repository.logScaleWeighIn(done.kg, done.impedance, composition)
-        // Let the finished dial and full bar register, then go straight to the analysis.
+        val plan = container.plans.plan.first()
+        val composition = plan.profile?.let { BodyCompositionCalc.compute(done.kg, done.impedance, it) }
+        val past = plan.weighIns.sortedBy { it.timestamp }.map { it.impedance }
+        val id = container.repository.logScaleWeighIn(done.kg, done.impedance, composition)
+        val problem = when {
+            done.impedance == null -> Notice.NotBarefoot(id, done.kg)
+            ImpedanceCheck.unusual(done.impedance, past) -> Notice.Unusual(id, done.kg)
+            else -> null
+        }
+        // Let the finished dial and full bar register, then go straight to the analysis, or say
+        // first why body composition is missing or doubtful.
         delay(700)
         val show = !dismissed
         close()
         dismissed = false
-        if (show) onOpenBody()
+        if (problem != null) notice = problem else if (show) onOpenBody()
+    }
+
+    fun weighAgain(problem: Notice) {
+        notice = null
+        retakes.tryEmit(Unit)
+        scope.launch { container.repository.deleteWeight(problem.id) }
     }
 
     suspend fun finished(done: WeighInDetector.Event.Done) {
@@ -140,6 +171,7 @@ fun AutoWeighIn(container: AppContainer, onOpenBody: () -> Unit) {
         // Runs only while the app is on screen; leaving it cancels the scan right away.
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             val detector = WeighInDetector()
+            launch { retakes.collect { detector.retake() } }
             launch {
                 while (true) {
                     delay(1_000)
@@ -216,6 +248,59 @@ fun AutoWeighIn(container: AppContainer, onOpenBody: () -> Unit) {
             },
         )
     }
+
+    notice?.let { problem ->
+        WeighInNoticeDialog(
+            problem,
+            onWeighAgain = { weighAgain(problem) },
+            onKeep = {
+                notice = null
+                if (problem is Notice.Unusual) onOpenBody()
+            },
+        )
+    }
+}
+
+/** Says why body composition is missing or doubtful, with Weigh again and a way to keep the reading. */
+@Composable
+internal fun WeighInNoticeDialog(problem: Notice, onWeighAgain: () -> Unit, onKeep: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = {},
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        icon = { Icon(Icons.Rounded.MonitorWeight, null) },
+        title = {
+            Text(
+                when (problem) {
+                    is Notice.NotBarefoot -> "Body composition not measured"
+                    is Notice.Unusual -> "This reading looks unusual"
+                },
+            )
+        },
+        text = {
+            Text(
+                when (problem) {
+                    is Notice.NotBarefoot ->
+                        "Your weight (${formatKg(problem.kg)}) is saved, but the scale couldn't measure body fat, muscle " +
+                            "and water. It needs bare, dry feet: socks, shoes or very dry feet block it."
+                    is Notice.Unusual ->
+                        "Body composition came out quite different from your recent weigh-ins, so body fat and the rest " +
+                            "may be off. Damp socks, lotion, or a shower or workout just before can do this. Weigh again " +
+                            "barefoot with dry feet to be sure."
+                },
+            )
+        },
+        confirmButton = { TextButton(onClick = onWeighAgain) { Text("Weigh again") } },
+        dismissButton = {
+            TextButton(onClick = onKeep) {
+                Text(
+                    when (problem) {
+                        is Notice.NotBarefoot -> "Keep weight only"
+                        is Notice.Unusual -> "Keep it"
+                    },
+                )
+            }
+        },
+    )
 }
 
 @Composable

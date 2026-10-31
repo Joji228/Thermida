@@ -63,4 +63,28 @@ class WeighInDetectorTest {
         // Nothing to compare with yet: trust it.
         assertTrue(WeighInDetector.looksLikeYou(61.0, null))
     }
+
+    @Test
+    fun aRetakeCountsTheNextStepOnButNotTheOldRepeats() {
+        val d = WeighInDetector(impedanceWaitMs = 12_000)
+        d.onReading(frame(83.4), 0)
+        assertEquals(Event.Done(83.4, null), d.onTick(12_000))
+        d.retake()
+        // The scale still repeats the old, stable frame: ignored, and no new wait starts.
+        assertNull(d.onReading(frame(83.4), 14_000))
+        assertNull(d.onTick(40_000))
+        // Socks off, stepping back on: the weight changes, then settles with the impedance.
+        assertEquals(Event.Weighing(83.0, settled = false), d.onReading(frame(83.0, stable = false), 50_000))
+        assertEquals(Event.Weighing(83.3, settled = true), d.onReading(frame(83.3), 51_000))
+        assertEquals(Event.Done(83.3, 501), d.onReading(frame(83.3, impedance = 501), 53_000))
+    }
+
+    @Test
+    fun withoutARetakeTheSameWeightSoonAfterIsIgnored() {
+        val d = WeighInDetector(impedanceWaitMs = 12_000)
+        d.onReading(frame(83.4), 0)
+        d.onTick(12_000)
+        assertNull(d.onReading(frame(83.0, stable = false), 50_000))
+        assertNull(d.onReading(frame(83.3, impedance = 501), 53_000))
+    }
 }
