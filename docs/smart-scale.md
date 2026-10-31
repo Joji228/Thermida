@@ -44,6 +44,11 @@ here is copied from the code; if they ever disagree, the code wins.
 - **Sequence:** unstable frames update the live weight. A stable frame without impedance starts
   "measuring body composition". A stable frame **with** impedance finishes the weigh-in.
 - **Weight only:** if no impedance arrives **12 s** after the weight settled, the weight is saved alone.
+  The app then says body composition wasn't measured (bare, dry feet needed) and offers
+  **Weigh again**, which deletes that reading; the next step-on counts even within the repeat window.
+- **Unusual reading:** an impedance more than **20 %** from the median of your last 10 (after at
+  least 3) is flagged as possibly off (damp socks, lotion, a shower or workout just before), with the
+  same **Weigh again**.
 - **Same weigh-in:** two stable frames within **0.3 kg** are the same weigh-in.
 - **Repeats:** the scale repeats its final frame after you step off. Within **90 s**, frames within
   **1 kg** of the last saved weigh-in are ignored, so it's saved once. A clearly different
