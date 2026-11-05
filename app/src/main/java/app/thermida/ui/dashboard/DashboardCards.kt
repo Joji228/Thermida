@@ -218,7 +218,9 @@ internal fun WeightCard(
     smooth: Boolean = true,
 ) {
     val profile = state.profile ?: return
-    val current = state.currentWeight ?: profile.startWeightKg
+    val trendWeight = state.currentWeight ?: profile.startWeightKg
+    // With smoothing off the card speaks in exact numbers: your latest weigh-in, not the trend.
+    val current = if (smooth) trendWeight else state.plan.weighIns.lastOrNull()?.kg ?: trendWeight
     val change = current - profile.startWeightKg
     val towardsGoal = (profile.goalWeightKg - profile.startWeightKg) * change >= 0
     val startDate = runCatching { LocalDate.parse(profile.startDate) }.getOrNull()
@@ -274,7 +276,7 @@ internal fun WeightCard(
                     smooth && chart.windowed -> "Last $WINDOW_DAYS days · Line is your trend, dots are weigh-ins"
                     smooth -> "Line is your trend, dots are your weigh-ins"
                     chart.windowed -> "Last $WINDOW_DAYS days · Line joins your weigh-ins"
-                    else -> "Line joins your weigh-ins · Trend smooths daily swings"
+                    else -> "Line joins your weigh-ins"
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -283,7 +285,7 @@ internal fun WeightCard(
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             WeightStat("Start", profile.startWeightKg, Modifier.weight(1f))
-            WeightStat("Trend", current, Modifier.weight(1f), highlight = true)
+            WeightStat(if (smooth) "Trend" else "Latest", current, Modifier.weight(1f), highlight = true)
             WeightStat("Goal", profile.goalWeightKg, Modifier.weight(1f))
         }
         if (scaleEnabled) {
