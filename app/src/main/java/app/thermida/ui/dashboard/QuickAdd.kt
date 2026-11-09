@@ -48,6 +48,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -172,6 +174,8 @@ fun QuickAddDialog(
             Column(
                 Modifier
                     .windowInsetsPadding(WindowInsets.statusBars)
+                    // Many food lines can be taller than the screen: scroll so Log stays reachable.
+                    .verticalScroll(rememberScrollState())
                     .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {

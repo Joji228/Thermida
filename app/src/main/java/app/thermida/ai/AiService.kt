@@ -210,7 +210,7 @@ class AiService(private val settings: SettingsRepository, client: OkHttpClient) 
     ): AnalysisResult {
         val first = complete(provider, ai, model, emptyList(), Prompts.user(note, 0), Prompts.TEXT_SYSTEM_SEARCH)
         val queries = FoodSearch.queries(first)
-        if (queries.isEmpty()) return AnalysisResult(parse(first), provider, model, fallbackReason)
+        if (queries.isEmpty()) return AnalysisResult(bestGuess(parse(first), provider, ai, model, note), provider, model, fallbackReason)
 
         onSearching()
         val key = ai.keyFor(Provider.DEEPSEEK)
@@ -228,7 +228,17 @@ class AiService(private val settings: SettingsRepository, client: OkHttpClient) 
 
         val userText = Prompts.user(note, 0) + "\n" + FoodSearch.results(found)
         val answer = complete(provider, ai, model, emptyList(), userText, Prompts.TEXT_SYSTEM)
-        return AnalysisResult(parse(FoodSearch.strip(answer)), provider, model, fallbackReason, webSources = sources, webNote = webNote)
+        return AnalysisResult(bestGuess(parse(FoodSearch.strip(answer)), provider, ai, model, note), provider, model, fallbackReason, webSources = sources, webNote = webNote)
+    }
+
+    /** When nothing was found, ask once more for a best guess, so a named food can always be logged. */
+    private suspend fun bestGuess(meal: AiMeal, provider: Provider, ai: AiSettings, model: String, note: String?): AiMeal {
+        if (meal.items.isNotEmpty() || note.isNullOrBlank()) return meal
+        val retry = Prompts.user(note, 0) + "\nNo exact data was found for this. It is a real food: give your best estimate from similar dishes or products anyway, with confidence low, and never return empty items."
+        return runCatching { parse(complete(provider, ai, model, emptyList(), retry, Prompts.TEXT_SYSTEM)) }
+            .getOrNull()?.takeIf { it.items.isNotEmpty() }
+            ?.let { it.copy(notes = listOf("Best guess, no exact data found", it.notes).filter(String::isNotBlank).joinToString(". ")) }
+            ?: meal
     }
 
     /**
