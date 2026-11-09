@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import app.thermida.AppContainer
 import app.thermida.ai.AiItem
 import app.thermida.ai.AnalysisResult
+import app.thermida.data.Provider
 import app.thermida.ai.enrichFromFoodFacts
 import app.thermida.data.PlanState
 import app.thermida.data.db.MealWithItems
@@ -129,8 +130,12 @@ class DashboardViewModel(private val app: AppContainer) : ViewModel() {
      * A plain-language description, estimated by the AI engine (DeepSeek by default, or its backup).
      * Branded products then take their real label values from Open Food Facts when it is on.
      */
-    suspend fun describeFood(text: String): AnalysisResult {
-        val result = app.ai.analyze(emptyList(), text)
+    suspend fun describeFood(text: String, onSearching: () -> Unit = {}): AnalysisResult {
+        // The web search needs the setting on and a DeepSeek key; without them the estimate is as before.
+        val search = app.webSearch.takeIf {
+            app.settings.webSearch.first() && app.settings.ai.first().keyFor(Provider.DEEPSEEK).isNotBlank()
+        }
+        val result = app.ai.analyze(emptyList(), text, webSearch = search, onSearching = onSearching)
         return if (app.settings.useFoodFacts.first()) result.enrichFromFoodFacts(app.foodFacts) else result
     }
 

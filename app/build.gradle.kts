@@ -18,8 +18,8 @@ android {
         targetSdk = 36
         // versionCode only ever goes up (Android refuses to install a lower one over the app
         // already on the phone without wiping its data); versionName is what the user sees.
-        versionCode = 65
-        versionName = "0.0.8"
+        versionCode = 66
+        versionName = "0.0.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

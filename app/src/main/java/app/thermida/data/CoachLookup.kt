@@ -29,8 +29,10 @@ object CoachLookup {
             .take(MAX_QUERIES)
             .toList()
 
-    /** The reply without any lookup block, for the rare answer that mixes both. */
-    fun strip(reply: String): String = block.replace(reply, "").trim()
+    private val searchBlock = Regex("""<search>(.*?)(?:</search>|$)""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
+
+    /** The reply without any lookup or web search block, for the rare answer that mixes them. */
+    fun strip(reply: String): String = searchBlock.replace(block.replace(reply, ""), "").trim()
 
     /** What goes back to the coach: each search with its products and label values per 100 g. */
     fun results(found: List<Pair<String, List<FoodFact>?>>): String = buildString {

@@ -6,11 +6,18 @@ import app.thermida.data.ApiKind
 import app.thermida.data.AppRegion
 import app.thermida.data.CoachMessage
 import app.thermida.data.Provider
+import app.thermida.data.FoodSearch
 import app.thermida.data.ThinkingLevel
+import app.thermida.data.WebSearch
+import app.thermida.data.outcome
 import app.thermida.data.TokenBudget
 import app.thermida.data.SettingsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -79,6 +86,10 @@ data class AnalysisResult(
     val fallbackReason: String? = null,
     /** Shown instead of "provider · model" when no AI was used (a barcode read from Open Food Facts). */
     val sourceLabel: String? = null,
+    /** The sites the web search used (at most three), when it found something. */
+    val webSources: List<String> = emptyList(),
+    /** Why the web search was skipped, when it was and nothing was found. */
+    val webNote: String? = null,
 )
 
 class AiException(message: String) : Exception(message)
@@ -87,6 +98,9 @@ class AiException(message: String) : Exception(message)
 data class CoachReply(val text: String, val provider: Provider, val model: String)
 
 private const val ANTHROPIC_VERSION = "2023-06-01"
+
+/** How long the web searches for one estimate may take in all. */
+private const val SEARCH_MS = 8_000L
 
 private object Prompts {
     const val SYSTEM = """You are a precise nutrition estimation assistant inside a calorie tracking app.
@@ -108,6 +122,10 @@ If there is no food, return {"meal_name": "", "items": [], "confidence": "low", 
     const val TEXT_SYSTEM = """Estimate the food the user describes. Reply ONLY with JSON in this shape:
 {"meal_name": "2-4 words", "meal_type": "breakfast|lunch|dinner|snack", "items": [{"name": "short name", "grams": 100, "kcal_per_100g": 100, "protein_per_100g": 5, "carbs_per_100g": 10, "fat_per_100g": 3, "product": ""}], "confidence": "low|medium|high", "notes": "one short sentence"}
 Rules: at most 4 items; group sides and sauces into the dish they belong to; use the grams the user gives, else a realistic portion; set product to the brand and product name only for a named packaged product; keep names short and in English."""
+
+    /** Text descriptions that may need a web search: the same answer, or one or two search lines first. */
+    const val TEXT_SYSTEM_SEARCH = TEXT_SYSTEM + """
+Web search: when the description names a brand, a chain, a restaurant or café, or a specific packaged product whose calories you don't know for sure, reply with ONLY one or two lines of the form <search>short query in a few words</search>, for example <search>Goody's Burger House Classic calories</search>, and nothing else. Plain foods (eggs, rice, a banana, a homemade dish) never need a search: answer those straight away with the JSON."""
 
     fun user(note: String?, imageCount: Int): String = buildString {
         append(
@@ -141,7 +159,12 @@ class AiService(private val settings: SettingsRepository, client: OkHttpClient) 
      * Tries the primary provider. Only when fallback is on, and a second provider is set up,
      * does a failure move on to that one; the result then says why the first was skipped.
      */
-    suspend fun analyze(images: List<ByteArray>, note: String?): AnalysisResult {
+    suspend fun analyze(
+        images: List<ByteArray>,
+        note: String?,
+        webSearch: WebSearch? = null,
+        onSearching: () -> Unit = {},
+    ): AnalysisResult {
         checkBudget()
         val ai = settings.ai.first()
         val errors = mutableListOf<String>()
@@ -156,6 +179,9 @@ class AiService(private val settings: SettingsRepository, client: OkHttpClient) 
         for (provider in usable) {
             try {
                 val model = resolveModel(provider, ai)
+                if (images.isEmpty() && webSearch != null) {
+                    return searchedEstimate(provider, ai, model, note, webSearch, onSearching, errors.joinToString("\n").ifBlank { null })
+                }
                 val system = if (images.isEmpty()) Prompts.TEXT_SYSTEM else Prompts.SYSTEM
                 val raw = complete(provider, ai, model, images, Prompts.user(note, images.size), system)
                 return AnalysisResult(parse(raw), provider, model, errors.joinToString("\n").ifBlank { null })
@@ -169,6 +195,43 @@ class AiService(private val settings: SettingsRepository, client: OkHttpClient) 
     }
 
     /**
+     * A typed description with web search. The first answer either estimates straight away, or asks
+     * for one or two searches; the searches run side by side, and the second answer is given with
+     * their results. A search that doesn't work never stops the estimate.
+     */
+    private suspend fun searchedEstimate(
+        provider: Provider,
+        ai: AiSettings,
+        model: String,
+        note: String?,
+        webSearch: WebSearch,
+        onSearching: () -> Unit,
+        fallbackReason: String?,
+    ): AnalysisResult {
+        val first = complete(provider, ai, model, emptyList(), Prompts.user(note, 0), Prompts.TEXT_SYSTEM_SEARCH)
+        val queries = FoodSearch.queries(first)
+        if (queries.isEmpty()) return AnalysisResult(parse(first), provider, model, fallbackReason)
+
+        onSearching()
+        val key = ai.keyFor(Provider.DEEPSEEK)
+        val found: List<Pair<String, FoodSearch.Outcome>> = withTimeoutOrNull(SEARCH_MS) {
+            coroutineScope { queries.map { q -> async { q to webSearch.outcome(key, q, note) } }.awaitAll() }
+        } ?: queries.map { it to FoodSearch.Outcome.Failed("Web search skipped (took too long)") }
+
+        val sources = found.flatMap { (_, outcome) -> (outcome as? FoodSearch.Outcome.Found)?.results.orEmpty() }
+            .sortedByDescending { it.score }
+            .map { it.site }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .take(3)
+        val webNote = if (sources.isEmpty()) found.firstNotNullOfOrNull { (it.second as? FoodSearch.Outcome.Failed)?.note } else null
+
+        val userText = Prompts.user(note, 0) + "\n" + FoodSearch.results(found)
+        val answer = complete(provider, ai, model, emptyList(), userText, Prompts.TEXT_SYSTEM)
+        return AnalysisResult(parse(FoodSearch.strip(answer)), provider, model, fallbackReason, webSources = sources, webNote = webNote)
+    }
+
+    /**
      * One answer from the AI coach. [context] is the user's data (see CoachContext), [messages]
      * the conversation so far, ending with the user's question. Uses the same engine, model,
      * DeepSeek thinking level and backup engine as meal scans.
@@ -179,6 +242,7 @@ class AiService(private val settings: SettingsRepository, client: OkHttpClient) 
         lookups: Boolean = false,
         detailed: Boolean = false,
         followUps: Boolean = true,
+        web: Boolean = false,
     ): CoachReply {
         checkBudget()
         val history = CoachRequests.history(messages)
@@ -191,7 +255,7 @@ class AiService(private val settings: SettingsRepository, client: OkHttpClient) 
         }
         val usable = listOfNotNull(ai.primary, ai.fallbackTarget).filter { ai.isReady(it) }
         if (usable.isEmpty()) throw AiException(errors.joinToString("\n"))
-        val system = CoachPrompt.system(context, lookups, detailed, followUps)
+        val system = CoachPrompt.system(context, lookups, detailed, followUps, web)
         for (provider in usable) {
             try {
                 val model = resolveModel(provider, ai)

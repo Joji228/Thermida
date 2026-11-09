@@ -24,7 +24,10 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import app.thermida.data.EntryTime
+import app.thermida.data.FoodSearch
 import app.thermida.data.FoodSource
+import app.thermida.data.Provider
+import app.thermida.data.outcome
 import app.thermida.data.db.FoodItemEntity
 import app.thermida.data.db.MealEntity
 import app.thermida.data.db.macros
@@ -219,6 +222,14 @@ class CoachViewModel(private val app: AppContainer) : ViewModel() {
         }
     }
 
+    /** Searches the web for each query at once, with the same 8-second limit as the product lookups. */
+    private suspend fun coachWebOutcomes(queries: List<String>): List<Pair<String, FoodSearch.Outcome>> {
+        val key = app.settings.ai.first().keyFor(Provider.DEEPSEEK)
+        return withTimeoutOrNull(8_000) {
+            coroutineScope { queries.map { q -> async { q to app.webSearch.outcome(key, q) } }.awaitAll() }
+        } ?: queries.map { it to FoodSearch.Outcome.Failed("Web search skipped (took too long)") }
+    }
+
     private fun ask() {
         thinking.value = true
         error.value = null
@@ -231,26 +242,38 @@ class CoachViewModel(private val app: AppContainer) : ViewModel() {
                 // With the food database on, the coach may first ask to look products up; the
                 // results go back to it (never into the chat) and it answers from the label values.
                 val lookups = app.settings.useFoodFacts.first()
+                // Web search (DeepSeek) when the setting is on and a DeepSeek key is saved.
+                val web = app.settings.webSearch.first() && app.settings.ai.first().keyFor(Provider.DEEPSEEK).isNotBlank()
                 val detailed = app.settings.coachDetailed.first()
                 val wantsFollowUps = app.settings.coachFollowUps.first()
                 val found = mutableMapOf<String, FoodFact>()
                 var history = messages.value
                 var round = 0
-                var reply = app.ai.chat(context, history, lookups, detailed, wantsFollowUps)
-                while (lookups && round < CoachLookup.MAX_ROUNDS) {
-                    val queries = CoachLookup.queries(reply.text)
-                    if (queries.isEmpty()) break
-                    activity.value = "Checking Open Food Facts…"
-                    val results = coroutineScope {
-                        queries.map { q ->
+                var reply = app.ai.chat(context, history, lookups, detailed, wantsFollowUps, web)
+                while ((lookups || web) && round < CoachLookup.MAX_ROUNDS) {
+                    val products = if (lookups) CoachLookup.queries(reply.text) else emptyList()
+                    val searches = if (web) FoodSearch.queries(reply.text) else emptyList()
+                    if (products.isEmpty() && searches.isEmpty()) break
+                    activity.value = when {
+                        products.isNotEmpty() && searches.isNotEmpty() -> "Checking products and the web…"
+                        searches.isNotEmpty() -> "Searching the web…"
+                        else -> "Checking Open Food Facts…"
+                    }
+                    val productResults = coroutineScope {
+                        products.map { q ->
                             async { q to withTimeoutOrNull(8_000) { runCatching { app.foodFacts.search(q, CoachLookup.RESULTS_PER_QUERY) }.getOrNull() } }
                         }.awaitAll()
                     }
-                    results.forEach { (_, facts) -> facts?.forEach { if (it.code.isNotBlank()) found[it.code] = it } }
-                    history = history + CoachMessage(fromUser = false, text = reply.text) + CoachMessage(fromUser = true, text = CoachLookup.results(results))
+                    productResults.forEach { (_, facts) -> facts?.forEach { if (it.code.isNotBlank()) found[it.code] = it } }
+                    val webResults = if (searches.isEmpty()) emptyList() else coachWebOutcomes(searches)
+                    val hidden = listOf(
+                        if (products.isEmpty()) "" else CoachLookup.results(productResults),
+                        if (searches.isEmpty()) "" else FoodSearch.results(webResults),
+                    ).filter { it.isNotEmpty() }.joinToString("\n")
+                    history = history + CoachMessage(fromUser = false, text = reply.text) + CoachMessage(fromUser = true, text = hidden)
                     activity.value = null
                     round++
-                    reply = app.ai.chat(context, history, lookups, detailed, wantsFollowUps)
+                    reply = app.ai.chat(context, history, lookups, detailed, wantsFollowUps, web)
                 }
                 val followUps = CoachFollowUps.parse(CoachLookup.strip(reply.text))
                 val parsed = CoachActions.parse(followUps.text, LocalDate.now())

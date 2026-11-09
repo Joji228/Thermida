@@ -70,6 +70,7 @@ import app.thermida.data.Provider
 import app.thermida.data.ThemeMode
 import app.thermida.update.UpdateState
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.MonitorWeight
 import androidx.compose.foundation.border
@@ -244,6 +245,21 @@ fun SettingsScreen(
                                 checked = foodFactsOn,
                                 onChange = viewModel::setUseFoodFacts,
                                 icon = Icons.Rounded.Search,
+                            )
+                        },
+                        {
+                            val webOn by viewModel.webSearch.collectAsStateWithLifecycle(initialValue = true)
+                            val hasDeepSeekKey = state.ai.keyFor(Provider.DEEPSEEK).isNotBlank()
+                            SwitchRow(
+                                title = "Web search",
+                                subtitle = when {
+                                    !hasDeepSeekKey -> "Needs a DeepSeek API key (add it under AI engine). Then typed foods and the coach can search the web for brands, chains and restaurant dishes"
+                                    webOn -> "On. Brands, chains and restaurant dishes are searched on the web when you type them or ask the coach. About \$0.75 per 1,000 searches, from your DeepSeek balance"
+                                    else -> "Off. Typed foods are estimated from what the AI already knows"
+                                },
+                                checked = webOn,
+                                onChange = viewModel::setWebSearch,
+                                icon = Icons.Rounded.Public,
                             )
                         },
                     ),

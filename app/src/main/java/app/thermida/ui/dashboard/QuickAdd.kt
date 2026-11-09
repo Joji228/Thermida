@@ -112,7 +112,7 @@ fun QuickAddDialog(
     onLogManual: (name: String, kcal: Double, protein: Double, carbs: Double, fat: Double, type: MealType) -> Unit,
     title: String = "Add food",
     /** Plain-language mode: the AI estimates what the user describes. Null opens straight on typing it in. */
-    describe: (suspend (String) -> AnalysisResult)? = null,
+    describe: (suspend (String, onSearching: () -> Unit) -> AnalysisResult)? = null,
     /** Logs a described meal: its name, items as corrected, meal type and where the estimate came from. */
     onLogEstimate: ((DescribedMeal) -> Unit)? = null,
     /** Foods to offer as starting points, such as the ones logged recently. */
@@ -333,7 +333,7 @@ private val describePortions = listOf(0.5, 1.0, 1.5, 2.0)
  */
 @Composable
 private fun DescribeFood(
-    describe: suspend (String) -> AnalysisResult,
+    describe: suspend (String, onSearching: () -> Unit) -> AnalysisResult,
     recent: (suspend () -> List<AiItem>)?,
     onLogEstimate: ((DescribedMeal) -> Unit)?,
     onEnterByHand: (() -> Unit)?,
@@ -350,6 +350,10 @@ private fun DescribeFood(
     var name by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf<String?>(null) }
     var aiSource by remember { mutableStateOf<String?>(null) }
+    // Set while DeepSeek searches the web for a brand, chain or dish, and the sites it used afterwards.
+    var searching by remember { mutableStateOf(false) }
+    var webSources by remember { mutableStateOf<List<String>>(emptyList()) }
+    var webNote by remember { mutableStateOf<String?>(null) }
     val lines = remember { mutableStateListOf<DescribeLine>() }
     var recents by remember { mutableStateOf<List<AiItem>>(emptyList()) }
     var type by remember { mutableStateOf(MealType.forTime()) }
@@ -382,14 +386,17 @@ private fun DescribeFood(
         problem = null
         scope.launch {
             try {
-                val estimate = describe(description)
+                val estimate = describe(description) { searching = true }
                 if (estimate.meal.items.isEmpty()) {
                     problem = "No food found in that. Try naming what you ate, e.g. 2 eggs and toast."
                 } else {
                     estimate.meal.items.forEach { lines.add(DescribeLine(System.nanoTime(), it)) }
                     if (name.isBlank()) name = estimate.meal.mealName
                     notes = estimate.meal.notes.takeIf { it.isNotBlank() }
-                    aiSource = estimate.sourceLabel ?: "${estimate.provider.title} · ${estimate.model}"
+                    webSources = estimate.webSources
+                    webNote = estimate.webNote
+                    aiSource = (estimate.sourceLabel ?: "${estimate.provider.title} · ${estimate.model}") +
+                        if (estimate.webSources.isNotEmpty()) " + web" else ""
                     type = MealType.entries.firstOrNull { it.name.equals(estimate.meal.mealType, ignoreCase = true) } ?: MealType.forTime()
                     portion = 1.0
                 }
@@ -399,6 +406,7 @@ private fun DescribeFood(
                 problem = e.message ?: "Couldn't estimate that."
             } finally {
                 busy = false
+                searching = false
             }
         }
     }
@@ -530,6 +538,10 @@ private fun DescribeFood(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // Where the web search looked, or why it was skipped.
+        (if (webSources.isNotEmpty()) "Checked the web: ${webSources.joinToString(", ")}" else webNote)?.let {
+            Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         PillSelector(MealType.entries, type, { it.title }, { type = it })
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(
@@ -537,6 +549,8 @@ private fun DescribeFood(
                     lines.clear()
                     notes = null
                     aiSource = null
+                    webSources = emptyList()
+                    webNote = null
                     portion = 1.0
                 },
                 contentPadding = PaddingValues(horizontal = 4.dp),
@@ -563,7 +577,13 @@ private fun DescribeFood(
         }
         Spacer(Modifier.weight(1f))
         Button(onClick = { estimate() }, enabled = text.isNotBlank() && !busy) {
-            Text(if (busy) "Working it out…" else "Work it out with AI")
+            Text(
+                when {
+                    searching -> "Searching the web…"
+                    busy -> "Working it out…"
+                    else -> "Work it out with AI"
+                },
+            )
         }
     }
 }

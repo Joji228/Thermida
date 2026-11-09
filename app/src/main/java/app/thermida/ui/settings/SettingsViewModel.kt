@@ -243,6 +243,10 @@ class SettingsViewModel(private val app: AppContainer) : ViewModel() {
 
     val smoothCharts = app.settings.smoothCharts
 
+    val webSearch = app.settings.webSearch
+
+    fun setWebSearch(on: Boolean) = viewModelScope.launch { app.settings.setWebSearch(on) }
+
     fun setSmoothCharts(smooth: Boolean) = viewModelScope.launch { app.settings.setSmoothCharts(smooth) }
 
     fun setHapticsEnabled(enabled: Boolean) = viewModelScope.launch {

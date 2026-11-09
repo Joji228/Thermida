@@ -11,6 +11,7 @@ import app.thermida.data.CoachStore
 import app.thermida.data.DayClock
 import app.thermida.data.DraftStore
 import app.thermida.data.ThermidaRepository
+import app.thermida.data.WebSearch
 import app.thermida.data.PhotoStore
 import app.thermida.data.PlanRepository
 import app.thermida.data.SettingsRepository
@@ -62,6 +63,8 @@ class AppContainer(context: Context) {
     /** One HTTP client for everything, so AI and Open Food Facts share connections and threads. */
     private val http = OkHttpClient()
     val ai = AiService(settings, http)
+    /** DeepSeek's web search, used by typed food descriptions and the coach when the setting is on. */
+    val webSearch = WebSearch(http)
     val scale = MiScaleScanner(context)
     /** Looks for a newer Thermida on GitHub on each launch; the user decides when to install it. */
     val updater = AppUpdater(context, http)

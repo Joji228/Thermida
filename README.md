@@ -31,7 +31,7 @@
 - ⚖️ **Xiaomi smart scale.** Step on a Mi Body Composition Scale 2 (XMTZC05HM) with the app open and the weigh-in and body composition are saved by themselves.
 - 🔒 **Private.** No account, no ads, no tracking. Your data stays on your phone; photos go only to the AI you pick.
 
-Packaged foods are checked against [Open Food Facts](https://world.openfoodfacts.org) (only food names and barcodes are sent, never photos). Everything optional can be switched off in Settings.
+Packaged foods are checked against [Open Food Facts](https://world.openfoodfacts.org) (only food names and barcodes are sent, never photos). With a DeepSeek key, typed foods and the coach can also search the web for brands and restaurant dishes; that sends the food name to DeepSeek's search. Everything optional can be switched off in Settings.
 
 ## Install
 
