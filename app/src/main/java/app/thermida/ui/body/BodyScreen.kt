@@ -88,6 +88,7 @@ import app.thermida.domain.Band
 import app.thermida.domain.BodyReport
 import app.thermida.domain.Metric
 import app.thermida.domain.Reading
+import app.thermida.domain.Segment
 import app.thermida.domain.Tone
 import app.thermida.ui.components.ChartPoint
 import app.thermida.ui.components.ThermidaCard
@@ -235,7 +236,7 @@ fun BodyScreen(viewModel: BodyViewModel, onBack: () -> Unit) {
                             },
                         )
                     } else {
-                        CompositionCard(entry.report, scans.getOrNull(index - 1)?.report, state.series, entry.date, state.smoothCharts)
+                        CompositionCard(entry.report, scans.getOrNull(index - 1), state.series, entry.date, state.smoothCharts)
                         Text(
                             stringResource(R.string.estimated_from_your_weight_the_scale),
                             style = MaterialTheme.typography.bodySmall,
@@ -494,7 +495,7 @@ private fun ScoreRing(score: Int) {
 // ---- Composition list ----------------------------------------------------------------------------
 
 @Composable
-private fun CompositionCard(scan: BodyReport, previous: BodyReport?, series: Map<Metric, List<ChartPoint>>, date: LocalDate, smooth: Boolean) {
+private fun CompositionCard(scan: BodyReport, previous: ScanEntry?, series: Map<Metric, List<ChartPoint>>, date: LocalDate, smooth: Boolean) {
     val rows = COMPOSITION_ROWS.mapNotNull { (main, extra) ->
         val reading = scan.readings.firstOrNull { it.metric == main } ?: return@mapNotNull null
         reading to extra.mapNotNull { m -> scan.readings.firstOrNull { it.metric == m } }
@@ -510,11 +511,13 @@ private fun CompositionCard(scan: BodyReport, previous: BodyReport?, series: Map
                 shown = shown,
                 share = reading.takeIf { it.metric in ALSO_SHOW_SHARE },
                 details = details,
-                change = previous?.value(shown.metric)?.let { shown.value - it },
+                last = previous?.report?.value(shown.metric),
+                lastDate = previous?.date,
+                lastDetails = details.associate { it.metric to previous?.report?.value(it.metric) },
                 expanded = open == reading.metric,
                 points = series[reading.metric].orEmpty(),
                 onToggle = { open = if (open == reading.metric) null else reading.metric },
-                // A single body-fat reading swings with how hydrated you are; the trend is what to watch.
+                // A single body-fat reading swings with how hydrated you are, so the trend is in the details.
                 trend = if (reading.metric in TREND_IN_ROW) trendAt(series[reading.metric].orEmpty(), date) else null,
                 smooth = smooth,
             )
@@ -527,7 +530,10 @@ private fun CompositionCard(scan: BodyReport, previous: BodyReport?, series: Map
 private fun MetricRow(
     reading: Reading,
     details: List<Reading>,
-    change: Double?,
+    /** The same number at the measurement before this one, or null when there is none. */
+    last: Double?,
+    lastDate: LocalDate?,
+    lastDetails: Map<Metric, Double?>,
     expanded: Boolean,
     points: List<ChartPoint>,
     onToggle: () -> Unit,
@@ -535,12 +541,12 @@ private fun MetricRow(
     shown: Reading = reading,
     /** Also shown small under the number, e.g. muscle as a share of weight. */
     share: Reading? = null,
-    /** Shown instead of the change since the last reading, which is mostly noise for this metric. */
+    /** The smoothed trend, shown in the opened row for metrics that swing from day to day. */
     trend: TrendNow? = null,
     smooth: Boolean = true,
 ) {
     val metric = reading.metric
-    fun Double.withUnit(m: Metric = shown.metric) = format(m.decimals) + if (m.unit.isEmpty()) "" else " ${m.unit}"
+    val quiet = MaterialTheme.colorScheme.onSurfaceVariant
     Column(
         Modifier
             .fillMaxWidth()
@@ -553,20 +559,13 @@ private fun MetricRow(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(metric.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val step = if (metric.decimals == 0) 0.5 else 0.05
-                val sub = if (trend != null) {
-                    listOfNotNull(
-                        "trend ${trend.value.withUnit()}",
-                        trend.change30?.takeIf { abs(it) >= step }?.let { (if (it > 0) "+" else "−") + abs(it).withUnit() + " in 30 days" },
-                    ).joinToString(" · ")
-                } else {
-                    listOfNotNull(
-                        share?.let { it.value.withUnit(it.metric) },
-                        change?.takeIf { abs(it) >= step }?.let { (if (it > 0) "+" else "−") + abs(it).withUnit() + if (share == null) " vs last" else "" },
-                    ).joinToString(" · ")
-                }
+                // Every row says how it moved since the measurement before.
+                val sub = listOfNotNull(
+                    last?.let { changeText(shown.value - it, shown.metric) + " vs last" },
+                    share?.let { withUnit(it.value, it.metric) },
+                ).joinToString(" · ")
                 if (sub.isNotEmpty()) {
-                    Text(sub, style = MaterialTheme.typography.labelSmall.merge(Numeric), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    Text(sub, style = MaterialTheme.typography.labelSmall.merge(Numeric), color = quiet, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Spacer(Modifier.width(8.dp))
@@ -575,49 +574,95 @@ private fun MetricRow(
                 Pill(it.label, it.tone.color())
                 Spacer(Modifier.width(8.dp))
             }
-            Text(shown.value.withUnit(), style = MaterialTheme.typography.titleMedium.merge(Numeric), maxLines = 1)
+            Text(withUnit(shown.value, shown.metric), style = MaterialTheme.typography.titleMedium.merge(Numeric), maxLines = 1)
             Spacer(Modifier.width(6.dp))
             Icon(
                 if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
                 if (expanded) "Hide details" else "Show details",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = quiet,
                 modifier = Modifier.size(20.dp),
             )
         }
         if (expanded) {
             Spacer(Modifier.height(10.dp))
-            Text(metric.about, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            details.forEach { detail ->
-                Spacer(Modifier.height(10.dp))
-                DetailRow(detail)
+            // Now against last time, at a glance.
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                CompareRow(
+                    label = lastDate?.let { "Last · " + it.format(DateTimeFormatter.ofPattern("MMM d")) } ?: "Last",
+                    metric = shown.metric,
+                    now = shown.value,
+                    last = last,
+                    header = true,
+                )
+                details.forEach { CompareRow(it.metric.title, it.metric, it.value, lastDetails[it.metric], pill = it.segment) }
+                share?.let { CompareRow("Share of weight", it.metric, it.value, null) }
+                trend?.let { t ->
+                    val step = if (shown.metric.decimals == 0) 0.5 else 0.05
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Trend", style = MaterialTheme.typography.bodySmall, color = quiet, modifier = Modifier.weight(1f))
+                        t.change30?.takeIf { abs(it) >= step }?.let {
+                            Text(changeText(it, shown.metric) + " in 30 days", style = MaterialTheme.typography.labelSmall.merge(Numeric), color = quiet)
+                            Spacer(Modifier.width(10.dp))
+                        }
+                        Text(withUnit(t.value, shown.metric), style = MaterialTheme.typography.bodySmall.merge(Numeric))
+                    }
+                }
             }
             reading.band?.let {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 BandBar(it, reading.value, metric.decimals)
             }
+            Spacer(Modifier.height(6.dp))
+            Text(metric.about, style = MaterialTheme.typography.bodySmall, color = quiet)
             if (points.size > 1) {
-                Spacer(Modifier.height(14.dp))
-                TrendChart(points, metric.unit, metric.decimals, height = 120.dp, smooth = smooth)
+                Spacer(Modifier.height(10.dp))
+                TrendChart(points, metric.unit, metric.decimals, height = 110.dp, smooth = smooth)
             }
         }
     }
 }
 
-/** A value shown inside an opened row, like fat in kilograms under body fat. */
+private fun withUnit(value: Double, metric: Metric) = value.format(metric.decimals) + if (metric.unit.isEmpty()) "" else " ${metric.unit}"
+
+/** "+1.1 kg", "−0.4 %", or "no change" when it moved less than the number can show. */
+private fun changeText(change: Double, metric: Metric): String {
+    val step = if (metric.decimals == 0) 0.5 else 0.05
+    return if (abs(change) < step) "no change" else (if (change > 0) "+" else "−") + withUnit(abs(change), metric)
+}
+
+/**
+ * One line of the opened row. The header line reads "Last · Nov 3   +0.4 %   38.8 %": the value
+ * last time and how far it has moved since. The other lines show a related value now, and its move.
+ */
 @Composable
-private fun DetailRow(reading: Reading) {
-    val metric = reading.metric
+private fun CompareRow(label: String, metric: Metric, now: Double, last: Double?, header: Boolean = false, pill: Segment? = null) {
+    val quiet = MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically) {
-        MetricBadge(metric, 26.dp)
-        Spacer(Modifier.width(10.dp))
-        Text(metric.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(label, style = MaterialTheme.typography.bodySmall, color = quiet, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (last != null) {
+            Text(changeText(now - last, metric), style = MaterialTheme.typography.labelSmall.merge(Numeric), color = quiet, maxLines = 1)
+            Spacer(Modifier.width(10.dp))
+        }
         Text(
-            reading.value.format(metric.decimals) + if (metric.unit.isEmpty()) "" else " ${metric.unit}",
-            style = MaterialTheme.typography.bodyMedium.merge(Numeric),
+            when {
+                !header -> withUnit(now, metric)
+                last != null -> withUnit(last, metric)
+                else -> "first measurement"
+            },
+            style = MaterialTheme.typography.bodySmall.merge(Numeric),
+            color = if (header && last == null) quiet else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
         )
-        reading.segment?.let {
+        pill?.let {
             Spacer(Modifier.width(8.dp))
-            Pill(it.label, it.tone.color())
+            Text(it.label, style = MaterialTheme.typography.labelSmall, color = it.tone.color(), maxLines = 1)
         }
     }
 }
@@ -700,5 +745,5 @@ private fun Tone.color() = when (this) {
     Tone.VERY_HIGH -> ToneColors.veryHigh
 }
 
-/** Rows that show their smoothed trend under the number instead of the change since last time. */
+/** Rows whose opened details also show the smoothed trend, since single readings swing. */
 private val TREND_IN_ROW = setOf(Metric.FAT)
