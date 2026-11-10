@@ -234,7 +234,8 @@ internal fun WeightCard(
             if (abs(change) >= 0.05) {
                 Spacer(Modifier.width(10.dp))
                 Pill(
-                    (if (change > 0) "+" else "−") + abs(change).format(1) + " kg",
+                    // "total": since your start weight, unlike the Body screen's 7-day change.
+                    (if (change > 0) "+" else "−") + abs(change).format(1) + " kg total",
                     if (towardsGoal) MaterialTheme.colorScheme.primary else Nutrient.Protein,
                 )
             }

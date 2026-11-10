@@ -121,7 +121,8 @@ If there is no food, return {"meal_name": "", "items": [], "confidence": "low", 
     /** Text-only descriptions: a short prompt and a compact answer, grouped into a few items. */
     const val TEXT_SYSTEM = """Estimate the food the user describes. Reply ONLY with JSON in this shape:
 {"meal_name": "2-4 words", "meal_type": "breakfast|lunch|dinner|snack", "items": [{"name": "short name", "grams": 100, "kcal_per_100g": 100, "protein_per_100g": 5, "carbs_per_100g": 10, "fat_per_100g": 3, "product": ""}], "confidence": "low|medium|high", "notes": "one short sentence"}
-Rules: at most 4 items; group sides and sauces into the dish they belong to; use the grams the user gives, else a realistic portion; set product to the brand and product name only for a named packaged product; keep names short and in English."""
+Rules: at most 4 items; group sides and sauces into the dish they belong to; use the grams the user gives, else a realistic portion; set product to the brand and product name only for a named packaged product; keep names short and in English.
+If the text names any food, drink or dish, always estimate it, even an unknown brand or menu item: use the closest similar food and set confidence to low. Return empty items only when the text names no food at all."""
 
     /** Text descriptions that may need a web search: the same answer, or one or two search lines first. */
     const val TEXT_SYSTEM_SEARCH = TEXT_SYSTEM + """

@@ -71,6 +71,7 @@ import app.thermida.data.ThemeMode
 import app.thermida.update.UpdateState
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.MonitorWeight
 import androidx.compose.foundation.border
@@ -184,15 +185,14 @@ fun SettingsScreen(
                                 subtitle = when {
                                     p?.smartTarget == false -> "Off. Your calories use the standard formula only"
                                     p?.customKcal != null -> "Paused while you use your own calorie target"
-                                    estimate == null -> "Tunes your daily calories to how your body really responds"
-                                    estimate.active -> "Your real burn is about ${estimate.measuredTdee!!.format()} kcal a day, " +
-                                        "measured from your meals and weigh-ins (${(estimate.confidence * 100).roundToInt()}% trusted). " +
-                                        "It adjusts your target only when it's off by 100 kcal or more, once a week at most."
-                                    else -> "Learning your real burn. ${estimate.waitingFor} " +
-                                        "(${estimate.daysLogged} of ${estimate.daysNeeded} days of meals logged)"
+                                    estimate == null -> "Tunes your calories to how your body responds"
+                                    estimate.active -> "Real burn about ${estimate.measuredTdee!!.format()} kcal a day " +
+                                        "(${(estimate.confidence * 100).roundToInt()}% trusted)"
+                                    else -> "Learning: ${estimate.waitingFor?.trimEnd('.')?.replaceFirstChar { it.lowercase() } ?: "keep logging"} " +
+                                        "(${estimate.daysLogged}/${estimate.daysNeeded} days)"
                                 } + (state.smartLast?.takeIf { p?.smartTarget == true }?.let { last ->
-                                    " Last change, ${last.on.format(DateTimeFormatter.ofPattern("MMM d"))}: " +
-                                        "${last.oldKcal.format()} → ${last.newKcal.format()} kcal."
+                                    " · Last: ${last.oldKcal.format()} → ${last.newKcal.format()} kcal, " +
+                                        last.on.format(DateTimeFormatter.ofPattern("MMM d"))
                                 } ?: ""),
                                 checked = p?.smartTarget != false,
                                 onChange = { on -> viewModel.updateProfile { it.copy(smartTarget = on) } },
@@ -223,9 +223,9 @@ fun SettingsScreen(
                             SwitchRow(
                                 title = "Regional food hints",
                                 subtitle = if (greek) {
-                                    "On. Hints for Greek and European foods. International dishes and brands still work"
+                                    "On. Tuned for Greek and European foods"
                                 } else {
-                                    "Off. Foods are estimated with no regional hints"
+                                    "Off. No regional tuning"
                                 },
                                 checked = greek,
                                 onChange = viewModel::setGreekTuning,
@@ -238,9 +238,9 @@ fun SettingsScreen(
                             SwitchRow(
                                 title = "Use Open Food Facts",
                                 subtitle = if (foodFactsOn) {
-                                    "On. Packaged foods in scans are checked against their real labels, and Add item can search products. Adds a couple of seconds to scans"
+                                    "On. Packaged foods are checked against real labels"
                                 } else {
-                                    "Free, open product database. Checks packaged foods in scans and lets you search products when adding food. Adds a couple of seconds; only food names are sent, never photos"
+                                    "Off. Check packaged foods against a free label database"
                                 },
                                 checked = foodFactsOn,
                                 onChange = viewModel::setUseFoodFacts,
@@ -253,9 +253,9 @@ fun SettingsScreen(
                             SwitchRow(
                                 title = "Web search",
                                 subtitle = when {
-                                    !hasDeepSeekKey -> "Needs a DeepSeek API key (add it under AI engine). Then typed foods and the coach can search the web for brands, chains and restaurant dishes"
-                                    webOn -> "On. Brands, chains and restaurant dishes are searched on the web when you type them or ask the coach. About \$0.75 per 1,000 searches, from your DeepSeek balance"
-                                    else -> "Off. Typed foods are estimated from what the AI already knows"
+                                    !hasDeepSeekKey -> "Needs a DeepSeek key (AI engine)"
+                                    webOn -> "On. Looks up brands and restaurant dishes · about \$0.75 per 1,000"
+                                    else -> "Off. The AI uses what it already knows"
                                 },
                                 checked = webOn,
                                 onChange = viewModel::setWebSearch,
@@ -324,9 +324,9 @@ fun SettingsScreen(
                             SwitchRow(
                                 title = "Smooth chart lines",
                                 subtitle = if (smooth) {
-                                    "On. Weight and body charts draw your trend, so daily swings don't zigzag the line"
+                                    "On. Charts show your trend, not daily swings"
                                 } else {
-                                    "Off. The line joins your exact readings, swings and all"
+                                    "Off. Charts join your exact readings"
                                 },
                                 checked = smooth,
                                 onChange = viewModel::setSmoothCharts,
@@ -402,8 +402,9 @@ fun SettingsScreen(
                             ListRow(
                                 "Storage and photos",
                                 subtitle = (photoStorage?.second?.let { if (it == 1) "1 photo · " else "$it photos · " } ?: "") +
-                                    "photos are deleted after $PHOTO_DAYS days, meals stay logged. Tap to delete photos now",
+                                    "kept $PHOTO_DAYS days, meals stay logged",
                                 value = photoStorage?.first,
+                                icon = Icons.Rounded.PhotoLibrary,
                                 iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 onClick = { photoDialog = true },
                             )
@@ -412,7 +413,7 @@ fun SettingsScreen(
                             ListRow(
                                 "Total app storage",
                                 subtitle = storage?.let {
-                                    "App ${formatBytes(it.appBytes)} · your data ${formatBytes(it.keptBytes)} · cache ${formatBytes(it.cacheBytes)}. Tap to clear the cache"
+                                    "App ${formatBytes(it.appBytes)} · data ${formatBytes(it.keptBytes)} · cache ${formatBytes(it.cacheBytes)}"
                                 } ?: "Counting…",
                                 value = storage?.let { formatBytes(it.totalBytes) },
                                 icon = Icons.Rounded.Storage,

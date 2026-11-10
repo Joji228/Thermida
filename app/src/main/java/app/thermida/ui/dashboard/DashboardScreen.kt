@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -246,16 +247,17 @@ fun DashboardScreen(
             }
             item {
                 Spacer(Modifier.height(4.dp))
-                // The + adds food to the day on screen, past days included (no camera for those).
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp)) {
+                // Food is logged from the Log food button at the top (it works for past days too).
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 4.dp, end = 4.dp).heightIn(min = 40.dp),
+                ) {
                     Text(stringResource(R.string.meals), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                     Text(
                         "${state.eaten.kcal.format()} kcal",
                         style = MaterialTheme.typography.titleSmall.merge(Numeric),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.width(10.dp))
-                    LogFoodButton { showQuickAdd = true }
                 }
             }
             if (state.meals.isEmpty() && !state.loading) {
