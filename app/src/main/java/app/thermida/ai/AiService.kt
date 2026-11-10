@@ -184,7 +184,8 @@ class AiService(private val settings: SettingsRepository, client: OkHttpClient) 
                 }
                 val system = if (images.isEmpty()) Prompts.TEXT_SYSTEM else Prompts.SYSTEM
                 val raw = complete(provider, ai, model, images, Prompts.user(note, images.size), system)
-                return AnalysisResult(parse(raw), provider, model, errors.joinToString("\n").ifBlank { null })
+                val meal = parse(raw).let { if (images.isEmpty()) bestGuess(it, provider, ai, model, note) else it }
+                return AnalysisResult(meal, provider, model, errors.joinToString("\n").ifBlank { null })
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
