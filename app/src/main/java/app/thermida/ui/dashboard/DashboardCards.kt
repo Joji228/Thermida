@@ -60,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -289,6 +290,19 @@ internal fun WeightCard(
             WeightStat(if (smooth) "Trend" else "Latest", current, Modifier.weight(1f), highlight = true)
             WeightStat("Goal", profile.goalWeightKg, Modifier.weight(1f))
         }
+        // How the newest weigh-in moved from the one before it, at a glance.
+        val weighIns = state.plan.weighIns
+        if (weighIns.size > 1) {
+            val newest = weighIns.last()
+            val before = weighIns[weighIns.size - 2]
+            Spacer(Modifier.height(12.dp))
+            SinceLast(
+                change = newest.kg - before.kg,
+                lastDate = runCatching { LocalDate.parse(before.date) }.getOrNull(),
+                today = state.today,
+                towardsGoalSign = profile.goalWeightKg - profile.startWeightKg,
+            )
+        }
         if (scaleEnabled) {
             // The latest weigh-in that came from the smart scale carries body composition.
             state.plan.weighIns.lastOrNull { it.impedance != null }?.compositionLine(profile)?.let { line ->
@@ -301,6 +315,43 @@ internal fun WeightCard(
                 Icon(Icons.Rounded.ChevronRight, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
             }
         }
+    }
+}
+
+/**
+ * "−0.6 kg since last weigh-in · Nov 9": the change, coloured blue when it heads towards the goal
+ * and orange when it heads away, with an optional note on the right (the BMI change on Body).
+ */
+@Composable
+internal fun SinceLast(change: Double, lastDate: LocalDate?, today: LocalDate, towardsGoalSign: Double, trailing: String? = null) {
+    val quiet = MaterialTheme.colorScheme.onSurfaceVariant
+    val moved = abs(change) >= 0.05
+    val color = when {
+        !moved -> quiet
+        towardsGoalSign * change >= 0 -> MaterialTheme.colorScheme.primary
+        else -> Nutrient.Protein
+    }
+    val day = when (lastDate) {
+        null -> null
+        today -> "today"
+        today.minusDays(1) -> "yesterday"
+        else -> lastDate.format(DateTimeFormatter.ofPattern("MMM d"))
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (moved) (if (change > 0) "+" else "−") + abs(change).format(1) + " kg" else "No change",
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold).merge(Numeric),
+            color = color,
+        )
+        Text(
+            " since last weigh-in" + (day?.let { " · $it" } ?: ""),
+            style = MaterialTheme.typography.bodySmall,
+            color = quiet,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        trailing?.let { Text(it, style = MaterialTheme.typography.bodySmall.merge(Numeric), color = quiet, maxLines = 1) }
     }
 }
 

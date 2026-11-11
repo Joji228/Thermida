@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.text.input.KeyboardType
+import app.thermida.data.CoachStarters
 import app.thermida.data.ActionFood
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.rounded.Close
@@ -515,7 +516,7 @@ internal fun InputBar(value: String, onChange: (String) -> Unit, canSend: Boolea
  * deliberately quieter than the proposal cards. Tapping one asks it.
  */
 @Composable
-internal fun FollowUpPills(questions: List<String>, onPick: (String) -> Unit) {
+internal fun FollowUpPills(questions: List<String>, onPick: (String) -> Unit, onCheckIn: (() -> Unit)? = null) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -523,7 +524,25 @@ internal fun FollowUpPills(questions: List<String>, onPick: (String) -> Unit) {
             .fillMaxWidth()
             .padding(top = 2.dp, bottom = 4.dp),
     ) {
-        items(questions) { question ->
+        if (onCheckIn != null) {
+            item {
+                // Tinted with the accent so it reads as the one always-there shortcut.
+                Surface(
+                    onClick = onCheckIn,
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                    contentColor = MaterialTheme.colorScheme.primary,
+                ) {
+                    Text(
+                        CoachStarters.CHECK_IN_LABEL,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    )
+                }
+            }
+        }
+        items(questions.filter { it != CoachStarters.CHECK_IN_LABEL }) { question ->
             Surface(
                 onClick = { onPick(question) },
                 shape = RoundedCornerShape(50),

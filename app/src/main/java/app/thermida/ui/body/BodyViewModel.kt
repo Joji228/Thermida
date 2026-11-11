@@ -29,6 +29,8 @@ data class BodyState(
     val today: LocalDate = LocalDate.now(),
     /** The newest weigh-in of any kind; drives weight and BMI. */
     val latest: BodyReport? = null,
+    /** The weigh-in before [latest], of any kind, with its day: for "since last weigh-in". */
+    val beforeLatest: Pair<LocalDate, BodyReport>? = null,
     /** The newest weigh-in that came with impedance, and the one before it for the changes. */
     val latestScan: BodyReport? = null,
     val previousScan: BodyReport? = null,
@@ -82,6 +84,7 @@ class BodyViewModel(private val app: AppContainer) : ViewModel() {
             profile = profile,
             today = today,
             latest = reports.last().second,
+            beforeLatest = reports.getOrNull(reports.size - 2),
             latestScan = scans.lastOrNull()?.second,
             previousScan = scans.getOrNull(scans.size - 2)?.second,
             latestScanDate = scans.lastOrNull()?.first,

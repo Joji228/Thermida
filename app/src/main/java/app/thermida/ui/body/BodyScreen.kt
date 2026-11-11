@@ -90,6 +90,7 @@ import app.thermida.domain.Metric
 import app.thermida.domain.Reading
 import app.thermida.domain.Segment
 import app.thermida.domain.Tone
+import app.thermida.ui.dashboard.SinceLast
 import app.thermida.ui.components.ChartPoint
 import app.thermida.ui.components.ThermidaCard
 import app.thermida.ui.components.Pill
@@ -225,7 +226,9 @@ fun BodyScreen(viewModel: BodyViewModel, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     entry?.let { ScoreCard(it.report) }
-                    WeightBmiCard(weighIn)
+                    // The weigh-in before: any kind for the newest position, else the measurement before.
+                    val before = if (entry == null || index == scans.lastIndex) state.beforeLatest else scans.getOrNull(index - 1)?.let { it.date to it.report }
+                    WeightBmiCard(weighIn, before, state.today, state.profile?.let { it.goalWeightKg - it.startWeightKg } ?: 0.0)
                     if (entry == null) {
                         EmptyCard(
                             "Body composition",
@@ -330,7 +333,7 @@ private fun MeasurementBar(entry: ScanEntry, index: Int, count: Int, onOlder: ()
 
 /** The weight of one weigh-in with its BMI, range bar and healthy weight, in one card. */
 @Composable
-private fun WeightBmiCard(report: BodyReport) {
+private fun WeightBmiCard(report: BodyReport, before: Pair<LocalDate, BodyReport>?, today: LocalDate, towardsGoalSign: Double) {
     val reading = report.readings.first { it.metric == Metric.BMI }
     ThermidaCard(padding = 16.dp) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -351,6 +354,17 @@ private fun WeightBmiCard(report: BodyReport) {
                     Text(report.bmi.format(1), style = MaterialTheme.typography.headlineMedium.merge(Numeric))
                 }
             }
+        }
+        before?.let { (date, last) ->
+            Spacer(Modifier.height(6.dp))
+            val bmiChange = report.bmi - last.bmi
+            SinceLast(
+                change = report.weightKg - last.weightKg,
+                lastDate = date,
+                today = today,
+                towardsGoalSign = towardsGoalSign,
+                trailing = if (abs(bmiChange) >= 0.05) "BMI " + (if (bmiChange > 0) "+" else "−") + abs(bmiChange).format(1) else null,
+            )
         }
         Spacer(Modifier.height(8.dp))
         BandBar(reading.band!!, reading.value, decimals = 1)

@@ -10,6 +10,11 @@ import java.time.LocalDateTime
  * day (no AI request): what's most useful right now comes first, the usual questions fill the rest.
  */
 object CoachStarters {
+    /** The pill that is always under the chat, and the full question it sends. */
+    const val CHECK_IN_LABEL = "How am I doing?"
+    const val CHECK_IN = "How am I doing overall? Give me a quick check-in: my weight and its trend since the last weigh-in, " +
+        "my body composition, my calories and protein today and this week against my targets, and the one thing to focus on next."
+
     val DEFAULTS = listOf(
         "How am I doing this week?",
         "Am I eating enough protein?",

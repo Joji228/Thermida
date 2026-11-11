@@ -512,16 +512,24 @@ fun CoachContent(
 
         // Follow-up questions from the newest answer: small pills in a sideways-scrolling row, kept
         // quiet next to the proposal cards. They step aside while the user types or a card waits.
+        // The "How am I doing?" check-in is always first in the row, so it shows even without follow-ups.
         val followUps = last?.suggestions.orEmpty()
         AnimatedVisibility(
-            visible = followUps.isNotEmpty() && pending.isEmpty() && !thinking && error == null && input.isBlank() && voice?.input?.listening != true,
+            visible = pending.isEmpty() && !thinking && error == null && input.isBlank() && voice?.input?.listening != true,
             enter = fadeIn(tween(220)) + expandVertically(expandFrom = Alignment.Bottom),
             exit = fadeOut(tween(120)) + shrinkVertically(shrinkTowards = Alignment.Bottom),
         ) {
-            FollowUpPills(followUps, onPick = { question ->
-                haptics.tick()
-                send(question)
-            })
+            FollowUpPills(
+                followUps,
+                onPick = { question ->
+                    haptics.tick()
+                    send(question)
+                },
+                onCheckIn = {
+                    haptics.tick()
+                    send(CoachStarters.CHECK_IN)
+                },
+            )
         }
 
         // Without a key the coach can't answer anything: say so before a question is wasted, with the way there.
