@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material.icons.rounded.CompareArrows
 import androidx.compose.material.icons.rounded.Screenshot
 import androidx.compose.foundation.verticalScroll
 import android.widget.Toast
@@ -136,6 +137,7 @@ fun BodyScreen(viewModel: BodyViewModel, onBack: () -> Unit) {
     val page = rememberGraphicsLayer()
     val pageBackground = MaterialTheme.colorScheme.background
     var saving by remember { mutableStateOf(false) }
+    var comparing by rememberSaveable { mutableStateOf(false) }
 
     // Which measurement is shown: -1 means the newest. Swiping right goes back in time.
     val scans = state.scans
@@ -145,6 +147,17 @@ fun BodyScreen(viewModel: BodyViewModel, onBack: () -> Unit) {
     swipe.canGoOlder = index > 0
     swipe.canGoNewer = index in 0 until scans.lastIndex
     swipe.onChange = { dir -> val target = index + dir; selected = if (target >= scans.lastIndex) -1 else target }
+
+    if (comparing && scans.size > 1) {
+        val now = index.coerceAtLeast(1)
+        CompareScreen(
+            scans = scans,
+            startThen = now - 1,
+            startNow = now,
+            losing = state.profile?.let { it.goalWeightKg < it.startWeightKg } ?: true,
+            onClose = { comparing = false },
+        )
+    }
 
     Column(
         Modifier
@@ -160,6 +173,11 @@ fun BodyScreen(viewModel: BodyViewModel, onBack: () -> Unit) {
             RoundIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", onBack)
             Spacer(Modifier.width(14.dp))
             Text(stringResource(R.string.body), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            // Two measurements side by side, from the one on screen and the one before it.
+            if (state.scans.size > 1) {
+                RoundIconButton(Icons.Rounded.CompareArrows, "Compare measurements", { comparing = true })
+                Spacer(Modifier.width(8.dp))
+            }
             if (state.latest != null) {
                 RoundIconButton(
                     Icons.Rounded.Screenshot,
@@ -745,7 +763,7 @@ private fun EmptyCard(title: String, text: String) {
     }
 }
 
-private object ToneColors {
+internal object ToneColors {
     val low = Color(0xFFFFC542)
     val good = Color(0xFF4CD48A)
     val high = Color(0xFFFF9F43)
